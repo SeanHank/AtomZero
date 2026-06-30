@@ -280,5 +280,3 @@ For security-related reports, please email directly rather than opening a public
 
 - **[Godot Engine](https://godotengine.org)** — The incredible open-source game engine that powers AtomZero
 - All contributors who help build and improve the AtomZero framework
-
----
