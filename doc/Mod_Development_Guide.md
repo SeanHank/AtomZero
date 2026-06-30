@@ -2077,24 +2077,3 @@ log level <level>            # Set log level
 | `CIRCULAR_DEP` | Circular Dependency |
 | `HASH_MISMATCH` | Hash verification failed |
 | `UNTRUSTED` | Reserved status, currently unused (auto-trusted on first load) |
-
----
-
-## Appendix B: Features Explicitly Not Implemented (Developer Notice)
-
-When developing Mods, note that the following features **do not exist**; do not attempt to use them:
-
-| Feature | Decision | Alternative |
-|------|------|---------|
-| Runtime exception isolation (try/catch) | Not implemented | Manually validate input, avoid error propagation |
-| Code Hot Reload | Not implemented | Data Hot Reload (data only); code changes require restart |
-| Permission control system | Not implemented | All Mods have the same API access capabilities |
-| Code signing | Not implemented | Hash whitelist (TOFU) verifies integrity |
-| Data migration mechanism | Not implemented | Mod maintains its own `_version` field and migrates |
-| Save schema versioning | Not implemented | JSON lenient parsing; Mod handles compatibility itself |
-| Reverse cross-layer dependency (Global→World) | Not implemented | Global Mod probes at runtime via `_on_world_load` |
-| `incompatibilities` mutual exclusion detection | Not implemented | Removed from previous versions |
-| `mod://` protocol integration in editor | Not implemented | Use the real path `res://mods/<mod_id>/` during development |
-| TOFU trust confirmation dialog | Not implemented | Auto-trust on first load, no user confirmation dialog is shown |
-| Path case normalization | Not implemented | Always use lowercase naming |
-| Static scanning for dangerous APIs | Not implemented | Without a sandbox, static scanning can be bypassed |
