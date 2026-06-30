@@ -311,15 +311,6 @@ Each object in the `dependencies` and `soft_dependencies` arrays:
 
 > **class_name Note (Important)**: Mod scripts **should not** declare `class_name`. Reason: In Development Mode, Mod source code resides in `res://`, and its `class_name` will be registered in `.godot/global_script_class_cache.cfg`, which is packaged with the PCK for release. When a release build extracts a script with the same name from a `.zip`, it will cause a "Class hides a global script class" conflict that leads to loading failure. The loader instantiates via path `load()` + `new()` and does not rely on class name lookup, so omitting `class_name` does not affect functionality. The same applies to block/entity classes inside a Mod — `class_name` should be omitted.
 
-### 3.4 Non-existent Fields (Important)
-
-The following fields **do not exist** in `mod.json`; do not add them (even if added, they will be ignored):
-
-- `permissions`: No permission control system
-- `signature`: No code signing
-- `incompatibilities`: Removed from previous versions
-- `min_engine_version` / `max_engine_version`: Use `game_version` instead
-
 ---
 
 ## 4. Development Workflow
