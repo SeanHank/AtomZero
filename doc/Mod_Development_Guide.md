@@ -2,7 +2,7 @@
 
 > **Engine Version**: Godot 4.6.3  
 > **Game Name**: AtomZero  
-> **Game Version**: `2026.6.30` (Release version, performs SemVer range matching when loading Mods)  
+> **Game Version**: `2026.6.30`  
 > **Document Version**: v2026.6.30   
 
 ---
