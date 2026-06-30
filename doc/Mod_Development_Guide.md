@@ -1,11 +1,10 @@
 # AtomZero Mod Development Guide
 
-> **Engine Version**: Godot 4.6.3
-> **Game Name**: AtomZero
-> **Game Version**: `2026.6.30` (Release version, performs SemVer range matching when loading Mods)
-> **Document Version**: v2026.6.30
-> **Companion Design Document**: [ModLoader_Technical_Design.md](./ModLoader_Technical_Design.md)
-> **Intended Audience**: Third-party Mod developers, content creators, Modpack authors
+> **Engine Version**: Godot 4.6.3  
+> **Game Name**: AtomZero  
+> **Game Version**: `2026.6.30` (Release version, performs SemVer range matching when loading Mods)  
+> **Document Version**: v2026.6.30  
+> **Companion Design Document**: [ModLoader_Technical_Design.md](./ModLoader_Technical_Design.md)  
 
 ---
 
@@ -29,7 +28,7 @@
 
 ## 1. Overview and Core Concepts
 
-### 1.1 AtomZero's "Empty Shell" Philosophy
+### 1.1 AtomZero's "Zero" Philosophy
 
 AtomZero adopts an "Empty Shell + fully Mod-driven" architecture. The game shell only provides infrastructure such as the Mod Loader kernel, EventBus, Virtual File System, Registry, Persistence Service, and logging system. **All gameplay, blocks, items, entities, UI, and world generation are provided by Mods**.
 
@@ -48,7 +47,7 @@ AtomZero divides Mods into two categories, differing in **scope and lifecycle**:
 | **Global Mod** | Process-level, effective across all worlds | `mods/` | Game startup Bootstrap phase | Core block library, render layer, UI framework, input system, network protocol |
 | **World Mod** | Single world isolation | `saves/<WorldName>/mods/` | When the player enters the corresponding world | World-specific gameplay, custom biomes, story scripts, world rules |
 
-### 1.3 Cross-layer Dependency Rules (Important)
+### 1.3 Cross-layer Dependency Rules
 
 - **World Mod can depend on Global Mod**: Allowed. When World Mods load, all Global Mods are already ready.
 - **Global Mod cannot depend on World Mod**: Not allowed. Global Mods load before World Mods, at which point World Mods do not yet exist.
@@ -85,7 +84,7 @@ When developing Mods, keep the following principles in mind (see Design Document
 #### 2.2.1 Clone the Shell Project
 
 ```bash
-git clone <atom-zero-repo-url> atom-zero
+git clone https://github.com/SeanHank/AtomZero.git atom-zero
 cd atom-zero
 ```
 
@@ -107,7 +106,7 @@ Launch Godot 4.6.3, select "Open Project", and locate `atom-zero/project.godot`.
 
 #### 2.2.3 Confirm Development Mode Is Enabled
 
-Open [core/bootstrap/Bootstrap.gd](file:///Users/admin/GodotProjects/atom-zero/core/bootstrap/Bootstrap.gd) and confirm:
+Open `core/bootstrap/Bootstrap.gd` and confirm:
 
 ```gdscript
 const MOD_DEV_MODE: bool = true
@@ -131,9 +130,9 @@ mods/my_first_mod/
 
 ### 2.4 Run and Verify
 
-1. Click "Run" (F5) in the Godot editor.
+1. Click "Run" in the Godot editor.
 2. After Bootstrap starts, it will scan the `mods/` directory.
-3. When your Mod is loaded for the first time, the HashVerifier will automatically calculate the file hash and **store it in the whitelist** (TOFU model, no confirmation dialog is shown). If the file is modified, it is marked `HASH_MISMATCH` and loading is refused.
+3. When your Mod is loaded for the first time, the HashVerifier will automatically calculate the file hash and **store it in the whitelist** (TOFU model). If the file is modified, it is marked `HASH_MISMATCH` and loading is refused.
 4. On subsequent launches, if the file is unchanged, verification passes automatically.
 5. Open the built-in console (press the `/` key) and enter `mods list` to see whether your Mod is loaded.
 
@@ -334,7 +333,7 @@ Requirements analysis → Create Mod directory → Write mod.json → Write main
 
 ### 4.2 Main Entry Interface
 
-The Mod main entry must implement the `IGlobalMod` (Global Mod) or `IWorldMod` (World Mod) interface. These two interfaces are defined in [core/api/interfaces/IGlobalMod.gd](file:///Users/admin/GodotProjects/atom-zero/core/api/interfaces/IGlobalMod.gd) and [core/api/interfaces/IWorldMod.gd](file:///Users/admin/GodotProjects/atom-zero/core/api/interfaces/IWorldMod.gd).
+The Mod main entry must implement the `IGlobalMod` (Global Mod) or `IWorldMod` (World Mod) interface. These two interfaces are defined in `core/api/interfaces/IGlobalMod.gd` and `core/api/interfaces/IWorldMod.gd`.
 
 #### 4.2.1 IGlobalMod Callbacks
 
@@ -896,7 +895,7 @@ func _on_tick(payload: Dictionary) -> void:
 
 ### 7.5 Built-in Event List
 
-All built-in events are defined in [core/event/events/GameEvents.gd](file:///Users/admin/GodotProjects/atom-zero/core/event/events/GameEvents.gd), accessed via the `GameEvents` class name constants.
+All built-in events are defined in `core/event/events/GameEvents.gd` accessed via the `GameEvents` class name constants.
 
 #### 7.5.1 Lifecycle Events
 
@@ -1611,7 +1610,7 @@ Before releasing a Mod, check the following:
 
 ### 11.7 Version Management Recommendations
 
-Follow [SemVer](https://semver.org/lang/zh-CN/):
+Follow [SemVer](https://semver.org/):
 
 - `MAJOR`: Incompatible API changes (such as modifying registration IDs, deleting blocks)
 - `MINOR`: Backward-compatible feature additions
@@ -2109,9 +2108,3 @@ When developing Mods, note that the following features **do not exist**; do not 
 | TOFU trust confirmation dialog | Not implemented | Auto-trust on first load, no user confirmation dialog is shown |
 | Path case normalization | Not implemented | Always use lowercase naming |
 | Static scanning for dangerous APIs | Not implemented | Without a sandbox, static scanning can be bypassed |
-
----
-
-**End of Document**
-
-> This document is based on the [AtomZero Technical Design Document v2026.6.30](./ModLoader_Technical_Design.md). If the technical design document is updated, this guide will be revised in sync. If any discrepancy is found between this document and actual behavior, the technical design document prevails.
