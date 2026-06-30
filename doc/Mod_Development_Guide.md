@@ -217,7 +217,7 @@ Each Mod root directory must contain a `mod.json`. The complete fields are as fo
     "name": "AtomZero Core Blocks",
     "version": "1.0.0",
     "game_version": ">=2026.6.30,<2027.0.0",
-    "author": "AtomZero Team",
+    "author": "AtomLife Studio",
     "description": "Core block definition library, providing basic block types.",
     "url": "https://example.com/atom_core_blocks",
     "license": "MIT",
