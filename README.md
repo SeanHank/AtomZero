@@ -137,7 +137,7 @@ _init_mod(api) → _on_world_load(world_id) → _on_world_enter(world_id)
 
 ```bash
 # Clone the repository
-git clone https://github.com/SeanHank/AtomZero.git
+git clone https://github.com/SeanHank/AtomZero.git atom-zero
 cd atom-zero
 
 # Open in Godot 4.6.3
