@@ -60,8 +60,8 @@ When developing Mods, keep the following principles in mind (see Design Document
 2. **Dependency Injection Principle**: Mods obtain services through `ModAPI` and do not directly access kernel implementations.
 3. **Event-driven Principle**: Communication between Mods should preferably go through the EventBus to avoid hard references.
 4. **Isolation Principle**: World Mods data is strongly bound to the world save and fully unloaded on world switch.
-5. **No Exception Isolation Principle**: Errors in Mod callbacks are not caught and may cause crashes. See §10 and Design Document §8.3.
-6. **No Permission Sandbox Principle**: No permission control or code signing is provided; only hash whitelist integrity verification is offered. See Design Document §9.
+5. **No Exception Isolation Principle**: Errors in Mod callbacks are not caught and may cause crashes. See §10.
+6. **No Permission Sandbox Principle**: No permission control or code signing is provided; only hash whitelist integrity verification is offered. 
 
 ---
 
