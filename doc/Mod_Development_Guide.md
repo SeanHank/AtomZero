@@ -301,13 +301,12 @@ Each object in the `dependencies` and `soft_dependencies` arrays:
 |------|------|------|
 | Mod ID | lowercase snake_case | `atom_core_blocks` |
 | Script files | lowercase snake_case `.gd` | `stone_block.gd` |
-| Class names | UpperCamelCase, prefixed with Mod ID abbreviation to avoid conflicts | `ACB_StoneBlock` |
 | Resource paths | lowercase snake_case | `assets/textures/stone_diffuse.png` |
 | Registration identifiers | `<mod_id>:<name>` | `atom_core_blocks:stone` |
 | Event names | lowercase snake_case with namespace | `atom_core_blocks:block_placed` |
 | Config keys | lowercase snake_case | `max_stack_size` |
 
-> **class_name Note (Important)**: Mod scripts **should not** declare `class_name`. Reason: In Development Mode, Mod source code resides in `res://`, and its `class_name` will be registered in `.godot/global_script_class_cache.cfg`, which is packaged with the PCK for release. When a release build extracts a script with the same name from a `.zip`, it will cause a "Class hides a global script class" conflict that leads to loading failure. The loader instantiates via path `load()` + `new()` and does not rely on class name lookup, so omitting `class_name` does not affect functionality. The same applies to block/entity classes inside a Mod — `class_name` should be omitted.
+> **Class Name Note**: Mod scripts **should not** declare `class_name`. Reason: In Development Mode, Mod source code resides in `res://`, and its `class_name` will be registered in `.godot/global_script_class_cache.cfg`, which is packaged with the PCK for release. When a release build extracts a script with the same name from a `.zip`, it will cause a "Class hides a global script class" conflict that leads to loading failure. The loader instantiates via path `load()` + `new()` and does not rely on class name lookup, so omitting `class_name` does not affect functionality. The same applies to block/entity classes inside a Mod — `class_name` should be omitted.
 
 ---
 
