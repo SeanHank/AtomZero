@@ -1,4 +1,4 @@
-# AtomZero - Zero is the cradle of all possibilities. 
+# AtomZero: Zero is the cradle of all possibilities. 
 
 _Be a light, not a judge. Be a model, not a critic. — Stephen Covey_
 
