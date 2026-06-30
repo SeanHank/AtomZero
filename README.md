@@ -8,7 +8,7 @@ _Be a light, not a judge. Be a model, not a critic. — Stephen Covey_
 
 ---
 
-## Table of Contents
+## Contents
 
 - [Overview](#overview)
 - [Key Features](#key-features)
@@ -33,7 +33,7 @@ The main scene is an empty `Control` node. The sole autoload is `Bootstrap`, whi
 
 This architecture enables:
 - **Total customization** — every aspect of gameplay is moddable
-- **Clean separation** — the engine kernel `core/` is never modified; all content lives in `mods/`
+- **Clean separation** — the engine kernel (`core/`) is never modified; all content lives in `mods/`
 - **World-scoped isolation** — World Mods are loaded/unloaded per world, preventing cross-world contamination
 
 ## Key Features
@@ -130,11 +130,6 @@ _init_mod(api) → _on_world_load(world_id) → _on_world_enter(world_id)
 - Linux
 - Android
 - iOS
-
-### Display
-
-- Default resolution: 1280×720
-- Renderer: Mobile 
 
 ## Installation
 
@@ -234,7 +229,7 @@ atom-zero/
 
 ## Creating Your Own Mod
 
-See [Mod Development Guide](doc/Mod_Development_Guide.md)
+See [Mod Development Guide](doc/Mod_Development_Guide.md) for details. 
 
 ## Contributing
 
