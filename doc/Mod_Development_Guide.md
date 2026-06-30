@@ -759,7 +759,7 @@ The above declaration means: when any code requests `mod://global/atom_core_bloc
 
 ### 6.6 Resource Size Recommendations
 
-This design **imposes no restrictions on Mod resource size** (see Design Document §10.1.5 for details). Hash verification uses streaming chunked reading (64KB chunks), with constant memory usage regardless of file size.
+This design **imposes no restrictions on Mod resource size**. Hash verification uses streaming chunked reading (64KB chunks), with constant memory usage regardless of file size.
 
 However, considering startup time, it is recommended:
 
