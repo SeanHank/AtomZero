@@ -17,7 +17,6 @@ var license: String = ""
 
 var mod_type: String = "global"  # "global" or "world"
 var entry: String = ""
-var entry_class: String = ""
 
 var dependencies: Array = []          # [{id, version}]
 var soft_dependencies: Array = []     # [{id, version}]
@@ -75,7 +74,6 @@ func _from_dict(data: Dictionary) -> void:
 	license = data.get("license", "")
 	mod_type = data.get("mod_type", "global")
 	entry = data.get("entry", "")
-	entry_class = data.get("entry_class", "")
 	dependencies = data.get("dependencies", [])
 	soft_dependencies = data.get("soft_dependencies", [])
 	resource_overrides = data.get("resource_overrides", [])
@@ -123,10 +121,6 @@ func _validate() -> void:
 	if entry.is_empty():
 		valid = false
 		error_msg = "entry is empty"
-		return
-	if entry_class.is_empty():
-		valid = false
-		error_msg = "entry_class is empty"
 		return
 
 
