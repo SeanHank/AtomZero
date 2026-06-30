@@ -3,8 +3,7 @@
 > **Engine Version**: Godot 4.6.3  
 > **Game Name**: AtomZero  
 > **Game Version**: `2026.6.30` (Release version, performs SemVer range matching when loading Mods)  
-> **Document Version**: v2026.6.30  
-> **Companion Design Document**: [ModLoader_Technical_Design.md](./ModLoader_Technical_Design.md)  
+> **Document Version**: v2026.6.30   
 
 ---
 
