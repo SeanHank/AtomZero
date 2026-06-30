@@ -156,7 +156,7 @@ cd atom-zero
 
 ## Usage Guide
 
-### Development Mode (Mod Authors)
+### Development Mode
 
 1. **Enable dev mode** — Open `core/bootstrap/Bootstrap.gd` and set:
    ```gdscript
