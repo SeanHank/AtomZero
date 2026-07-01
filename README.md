@@ -272,6 +272,7 @@ See: `LICENSE`
 ## Contact
 
 - **GitHub Issues**: [Report bugs and request features](https://github.com/SeanHank/AtomZero/issues)
+- **GitHub Discussions**: [Ask questions and share mods](https://github.com/SeanHank/AtomZero/discussions)
 - **Email**: `xiaohanaus@gmail.com`
 
 For security-related reports, please email directly rather than opening a public issue.
