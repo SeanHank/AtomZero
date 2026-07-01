@@ -67,7 +67,6 @@ This architecture enables:
 | Game Engine | Godot 4.6.3 |
 | Renderer | Mobile |
 | Mod Packaging | Python 3.8+ |
-| Version Scheme | Semantic Versioning |
 
 ### Core Modules (10)
 
