@@ -65,7 +65,6 @@ This architecture enables:
 | Component | Technology |
 |-----------|----------|
 | Game Engine | Godot 4.6.3 |
-| Physics | Jolt Physics |
 | Renderer | Mobile |
 | Mod Packaging | Python 3.8+ |
 | Version Scheme | Semantic Versioning |
