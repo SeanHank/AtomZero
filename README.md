@@ -265,7 +265,11 @@ This project is licensed under the **GNU Affero General Public License v3.0** (A
 
 Copyright © 2026 AtomLife Studio.
 
-See: `LICENSE`
+See: [LICENSE](LICENSE)
+
+### Disclaimer
+
+See: [DISCLAIMER.md](DISCLAIMER.md)
 
 > **Note on mods**: Individual mods may declare their own license in their `mod.json` file. The AGPLv3 license applies to the AtomZero engine kernel (`core/`) and project infrastructure. Mod authors are free to choose their own licenses for their mods.
 
