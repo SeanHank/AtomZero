@@ -121,11 +121,11 @@ jobs:
           GODOT_DIR="$HOME/godot"
           mkdir -p "$GODOT_DIR"
           BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
-          # Editor (universal binary covers both x86_64 and arm64)
+          # Editor — the macOS .zip extracts to Godot.app, not a standalone binary
           curl -L --fail -o "$GODOT_DIR/godot.zip" \
             "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal.zip"
           unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
-          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal"
+          GODOT_BIN="$GODOT_DIR/Godot.app/Contents/MacOS/Godot"
           chmod +x "$GODOT_BIN"
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
           # Export templates (.tpz is a zip)
@@ -363,13 +363,38 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0 cmdline-tools;latest'
 
-      - name: Set up Android NDK
+      - name: Set up Android NDK r23c
         run: |
-          # Godot 4.x requires NDK r23c (LTS) for the prebuilt Android libraries
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "ndk;23.2.8819162" || true
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/23.2.8819162" >> "$GITHUB_ENV"
-          echo "::notice::Android NDK 23.2 installed"
+          # Godot 4.x requires NDK r23c — sdkmanager may no longer serve this
+          # version, so download it directly from Google's NDK archive.
+          NDK_VERSION="23.2.8819162"
+          NDK_DIR="$ANDROID_HOME/ndk/$NDK_VERSION"
+          if [ ! -d "$NDK_DIR" ]; then
+            mkdir -p "$ANDROID_HOME/ndk"
+            curl -L --fail -o /tmp/android-ndk.zip \
+              "https://dl.google.com/android/repository/android-ndk-r23c-linux.zip"
+            unzip -q /tmp/android-ndk.zip -d /tmp
+            mv /tmp/android-ndk-r23c "$NDK_DIR"
+            rm -rf /tmp/android-ndk.zip
+          fi
+          echo "ANDROID_NDK_ROOT=$NDK_DIR" >> "$GITHUB_ENV"
+          echo "::notice::Android NDK r23c installed at $NDK_DIR"
+
+      - name: Install Android build template
+        run: |
+          # Godot 4.x requires the Android build template (Gradle project) at
+          # res://android/build/ for headless export. Download the Godot source
+          # and extract the platform/android/java/ directory.
+          set -euo pipefail
+          SOURCE_TAR="/tmp/godot-source-${GODOT_VERSION}.tar.gz"
+          curl -L --fail -o "$SOURCE_TAR" \
+            "https://github.com/godotengine/godot/archive/refs/tags/${GODOT_VERSION}-${GODOT_STABLE_LABEL}.tar.gz"
+          mkdir -p res/android/build
+          tar -xzf "$SOURCE_TAR" --strip-components=3 \
+            -C res/android/build \
+            "godot-${GODOT_VERSION}-${GODOT_STABLE_LABEL}/platform/android/java/"
+          chmod +x res/android/build/gradlew
+          echo "::notice::Android build template installed at res/android/build/"
 
       - name: Configure release keystore (if secrets available)
         id: keystore
@@ -478,10 +503,11 @@ jobs:
           GODOT_DIR="$HOME/godot"
           mkdir -p "$GODOT_DIR"
           BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
+          # Editor — the macOS .zip extracts to Godot.app, not a standalone binary
           curl -L --fail -o "$GODOT_DIR/godot.zip" \
             "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal.zip"
           unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
-          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal"
+          GODOT_BIN="$GODOT_DIR/Godot.app/Contents/MacOS/Godot"
           chmod +x "$GODOT_BIN"
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
           TEMPLATES_DIR="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.${GODOT_STABLE_LABEL}"
