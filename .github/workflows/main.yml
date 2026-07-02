@@ -526,6 +526,7 @@ jobs:
           CERT_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
           CERT_PASS: ${{ secrets.IOS_CERTIFICATE_PASS }}
           PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           if [ -z "$CERT_BASE64" ]; then
             echo "::notice::No iOS signing secrets configured; exporting an unsigned Xcode project"
@@ -572,35 +573,18 @@ jobs:
               "application/export_method=2",
               "application/export_method=0"
           )
+          team_id = os.environ.get("IOS_TEAM_ID", "")
+          if team_id:
+              text = text.replace(
+                  "application/app_store_team_id=\"0000000000\"",
+                  "application/app_store_team_id=\"" + team_id + "\""
+              )
+              print("[patch] iOS Team ID set from IOS_TEAM_ID secret")
           p.write_text(text, encoding="utf-8")
           print("[patch] iOS signing configured")
           '
             echo "EXPORT_PROJECT_ONLY=false" >> "$GITHUB_ENV"
           fi
-
-      # NEW: Set a placeholder Team ID to pass Godot's configuration check
-      - name: Set iOS Team ID placeholder
-        run: |
-          python3 -c "
-          import configparser
-          config = configparser.ConfigParser()
-          config.read('export_presets.cfg')
-          preset_section = None
-          for section in config.sections():
-              if section.startswith('preset.'):
-                  name = config.get(section, 'name', fallback='')
-                  platform = config.get(section, 'platform', fallback='')
-                  if name == 'iOS' or platform == 'iOS':
-                      preset_section = section
-                      break
-          if preset_section:
-              config.set(preset_section, 'application/team_id', 'ABCDEFGHIJ')
-              with open('export_presets.cfg', 'w') as f:
-                  config.write(f)
-              print('✅ Set application/team_id to ABCDEFGHIJ')
-          else:
-              print('⚠️ iOS preset not found, skipping')
-          "
 
       - name: Export iOS
         run: |
