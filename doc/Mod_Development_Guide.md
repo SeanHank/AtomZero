@@ -140,21 +140,7 @@ mods/my_first_mod/
 > - Whether there are ERROR logs in the console (see §10)
 > - Whether the `game_version` field contains `2026.6.30`
 
-### 2.5 Recommended Editor Configuration
-
-#### 2.5.1 VSCode (Recommended)
-
-Install the following extensions:
-
-- **GDScript** (George Mountcastle or official): Syntax highlighting, auto-completion
-- **EditorConfig**: Keep indentation style consistent
-- **JSON Language Server**: Validate `mod.json` format
-
-#### 2.5.2 Godot Editor External Editor
-
-Configure the use of an external editor in `Editor → Editor Settings → Text Editor → External`, with the path pointing to VSCode.
-
-### 2.6 Project-level `.gitignore` Recommendations
+### 2.5 Project-level `.gitignore` Recommendations
 
 If your Mod is in a standalone Git repository, it is recommended to ignore the following:
 
