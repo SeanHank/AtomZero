@@ -383,18 +383,18 @@ jobs:
       - name: Install Android build template
         run: |
           # Godot 4.x requires the Android build template (Gradle project) at
-          # res://android/build/ for headless export. Download the Godot source
+          # android/build/ for headless export. Download the Godot source
           # and extract the platform/android/java/ directory.
           set -euo pipefail
           SOURCE_TAR="/tmp/godot-source-${GODOT_VERSION}.tar.gz"
           curl -L --fail -o "$SOURCE_TAR" \
             "https://github.com/godotengine/godot/archive/refs/tags/${GODOT_VERSION}-${GODOT_STABLE_LABEL}.tar.gz"
-          mkdir -p res/android/build
+          mkdir -p android/build
           tar -xzf "$SOURCE_TAR" --strip-components=4 \
-            -C res/android/build \
+            -C android/build \
             "godot-${GODOT_VERSION}-${GODOT_STABLE_LABEL}/platform/android/java/"
-          chmod +x res/android/build/gradlew
-          echo "::notice::Android build template installed at res/android/build/"
+          chmod +x android/build/gradlew
+          echo "::notice::Android build template installed at android/build/"
 
       - name: Configure release keystore (if secrets available)
         id: keystore
@@ -577,6 +577,30 @@ jobs:
           '
             echo "EXPORT_PROJECT_ONLY=false" >> "$GITHUB_ENV"
           fi
+
+      # NEW: Set a placeholder Team ID to pass Godot's configuration check
+      - name: Set iOS Team ID placeholder
+        run: |
+          python3 -c "
+import configparser
+config = configparser.ConfigParser()
+config.read('export_presets.cfg')
+preset_section = None
+for section in config.sections():
+    if section.startswith('preset.'):
+        name = config.get(section, 'name', fallback='')
+        platform = config.get(section, 'platform', fallback='')
+        if name == 'iOS' or platform == 'iOS':
+            preset_section = section
+            break
+if preset_section:
+    config.set(preset_section, 'application/team_id', 'ABCDEFGHIJ')
+    with open('export_presets.cfg', 'w') as f:
+        config.write(f)
+    print('✅ Set application/team_id to ABCDEFGHIJ')
+else:
+    print('⚠️ iOS preset not found, skipping')
+"
 
       - name: Export iOS
         run: |
