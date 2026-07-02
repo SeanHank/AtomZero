@@ -582,25 +582,25 @@ jobs:
       - name: Set iOS Team ID placeholder
         run: |
           python3 -c "
-import configparser
-config = configparser.ConfigParser()
-config.read('export_presets.cfg')
-preset_section = None
-for section in config.sections():
-    if section.startswith('preset.'):
-        name = config.get(section, 'name', fallback='')
-        platform = config.get(section, 'platform', fallback='')
-        if name == 'iOS' or platform == 'iOS':
-            preset_section = section
-            break
-if preset_section:
-    config.set(preset_section, 'application/team_id', 'ABCDEFGHIJ')
-    with open('export_presets.cfg', 'w') as f:
-        config.write(f)
-    print('✅ Set application/team_id to ABCDEFGHIJ')
-else:
-    print('⚠️ iOS preset not found, skipping')
-"
+          import configparser
+          config = configparser.ConfigParser()
+          config.read('export_presets.cfg')
+          preset_section = None
+          for section in config.sections():
+              if section.startswith('preset.'):
+                  name = config.get(section, 'name', fallback='')
+                  platform = config.get(section, 'platform', fallback='')
+                  if name == 'iOS' or platform == 'iOS':
+                      preset_section = section
+                      break
+          if preset_section:
+              config.set(preset_section, 'application/team_id', 'ABCDEFGHIJ')
+              with open('export_presets.cfg', 'w') as f:
+                  config.write(f)
+              print('✅ Set application/team_id to ABCDEFGHIJ')
+          else:
+              print('⚠️ iOS preset not found, skipping')
+          "
 
       - name: Export iOS
         run: |
