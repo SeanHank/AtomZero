@@ -390,7 +390,7 @@ jobs:
           curl -L --fail -o "$SOURCE_TAR" \
             "https://github.com/godotengine/godot/archive/refs/tags/${GODOT_VERSION}-${GODOT_STABLE_LABEL}.tar.gz"
           mkdir -p res/android/build
-          tar -xzf "$SOURCE_TAR" --strip-components=3 \
+          tar -xzf "$SOURCE_TAR" --strip-components=4 \
             -C res/android/build \
             "godot-${GODOT_VERSION}-${GODOT_STABLE_LABEL}/platform/android/java/"
           chmod +x res/android/build/gradlew
@@ -531,20 +531,20 @@ jobs:
             echo "::notice::No iOS signing secrets configured; exporting an unsigned Xcode project"
             # Patch the preset to export an Xcode project instead of .ipa
             python3 - <<'PY'
-            import pathlib
-            p = pathlib.Path("export_presets.cfg")
-            text = p.read_text(encoding="utf-8")
-            text = text.replace(
-                'application/export_project_only=false',
-                'application/export_project_only=true'
-            )
-            text = text.replace(
-                'export_path="dist/AtomZero.ipa"',
-                'export_path="dist/ios_xcode_project"'
-            )
-            p.write_text(text, encoding="utf-8")
-            print("[patch] iOS preset set to export Xcode project (unsigned)")
-            PY
+import pathlib
+p = pathlib.Path("export_presets.cfg")
+text = p.read_text(encoding="utf-8")
+text = text.replace(
+    'application/export_project_only=false',
+    'application/export_project_only=true'
+)
+text = text.replace(
+    'export_path="dist/AtomZero.ipa"',
+    'export_path="dist/ios_xcode_project"'
+)
+p.write_text(text, encoding="utf-8")
+print("[patch] iOS preset set to export Xcode project (unsigned)")
+PY
             echo "EXPORT_PROJECT_ONLY=true" >> "$GITHUB_ENV"
           else
             echo "::notice::iOS signing secrets detected; configuring signing"
@@ -555,28 +555,28 @@ jobs:
             echo "$PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/AtomZero.mobileprovision"
             # Patch the preset with signing details
             python3 - <<'PY'
-            import pathlib, os
-            p = pathlib.Path("export_presets.cfg")
-            text = p.read_text(encoding="utf-8")
-            text = text.replace(
-                'application/certificate=""',
-                f'application/certificate="{os.path.expanduser("~/ios_developer.p12")}"'
-            )
-            text = text.replace(
-                'application/certificate_password=""',
-                f'application/certificate_password="{os.environ["CERT_PASS"]}"'
-            )
-            text = text.replace(
-                'application/provisioning_profile=""',
-                'application/provisioning_profile="AtomZero"'
-            )
-            text = text.replace(
-                'application/export_method=2',
-                'application/export_method=0'  # 0 = development
-            )
-            p.write_text(text, encoding="utf-8")
-            print("[patch] iOS signing configured")
-            PY
+import pathlib, os
+p = pathlib.Path("export_presets.cfg")
+text = p.read_text(encoding="utf-8")
+text = text.replace(
+    'application/certificate=""',
+    f'application/certificate="{os.path.expanduser("~/ios_developer.p12")}"'
+)
+text = text.replace(
+    'application/certificate_password=""',
+    f'application/certificate_password="{os.environ["CERT_PASS"]}"'
+)
+text = text.replace(
+    'application/provisioning_profile=""',
+    'application/provisioning_profile="AtomZero"'
+)
+text = text.replace(
+    'application/export_method=2',
+    'application/export_method=0'
+)
+p.write_text(text, encoding="utf-8")
+print("[patch] iOS signing configured")
+PY
             echo "EXPORT_PROJECT_ONLY=false" >> "$GITHUB_ENV"
           fi
 
