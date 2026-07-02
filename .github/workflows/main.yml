@@ -1,0 +1,735 @@
+name: Build and Release
+
+# AtomZero CI — builds macOS, Linux, Windows, Android, and iOS distributables
+# from the core/ shell + icon.svg, then uploads them to a GitHub Release.
+#
+# Triggers:
+#   1. Push of a version tag matching v* (e.g. v2026.6.30) → build + release
+#   2. Manual dispatch (workflow_dispatch) → build + optional release
+#
+# Required secrets (see tools/ci/README.md for details):
+#   ANDROID_KEYSTORE_BASE64   Base64-encoded release keystore (optional, debug used if absent)
+#   ANDROID_KEYSTORE_USER     Keystore alias
+#   ANDROID_KEYSTORE_PASS     Keystore password
+#   ANDROID_KEY_PASS          Key password
+#   IOS_CERTIFICATE_BASE64    Base64-encoded signing certificate (optional)
+#   IOS_CERTIFICATE_PASS      Certificate password
+#   IOS_PROVISIONING_PROFILE  Base64-encoded provisioning profile (optional)
+#   NOTIFY_WEBHOOK_URL        Slack/Discord webhook for failure alerts (optional)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 2026.6.30)'
+        required: true
+        default: '2026.6.30'
+      create_release:
+        description: 'Create a GitHub Release after builds succeed'
+        type: boolean
+        default: true
+
+# Cancel superseded runs on the same ref
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: '4.6.3'
+  GODOT_STABLE_LABEL: 'stable'
+  GAME_NAME: 'AtomZero'
+
+permissions:
+  contents: write   # needed by softprops/action-gh-release to create releases
+  issues: write     # needed by the notify-failure job to create issues
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # Prepare: resolve version, generate export_presets.cfg, share artifact
+  # ─────────────────────────────────────────────────────────────────────
+  prepare:
+    name: Prepare (version + presets)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      create_release: ${{ steps.meta.outputs.create_release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve build metadata
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
+            CREATE_RELEASE="true"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+            TAG="v${VERSION}"
+            CREATE_RELEASE="${{ github.event.inputs.create_release }}"
+          fi
+          echo "version=${VERSION}"  >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}"          >> "$GITHUB_OUTPUT"
+          echo "create_release=${CREATE_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Building AtomZero ${VERSION} (tag ${TAG})"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate export_presets.cfg
+        run: |
+          python3 tools/ci/generate_export_presets.py \
+            --version "${{ steps.meta.outputs.version }}" \
+            --output export_presets.cfg
+          echo "--- Generated presets ---"
+          grep -E '^\[preset\.[0-9]+\]$|^name=|^platform=' export_presets.cfg
+
+      - name: Upload export_presets.cfg
+        uses: actions/upload-artifact@v4
+        with:
+          name: export-presets
+          path: export_presets.cfg
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # macOS build (.app → .zip)
+  # ─────────────────────────────────────────────────────────────────────
+  build-macos:
+    name: Build macOS (.app)
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download generated export_presets.cfg
+        uses: actions/download-artifact@v4
+        with:
+          name: export-presets
+          path: .
+
+      - name: Set up Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$HOME/godot"
+          mkdir -p "$GODOT_DIR"
+          BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
+          # Editor (universal binary covers both x86_64 and arm64)
+          curl -L --fail -o "$GODOT_DIR/godot.zip" \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal.zip"
+          unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          # Export templates (.tpz is a zip)
+          TEMPLATES_DIR="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.${GODOT_STABLE_LABEL}"
+          mkdir -p "$TEMPLATES_DIR"
+          curl -L --fail -o /tmp/templates.tpz \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_export_templates.tpz"
+          unzip -o /tmp/templates.tpz -d "$TEMPLATES_DIR"
+          # The .tpz extracts a `templates/` subfolder; Godot expects the files
+          # directly inside the version directory.
+          if [ -d "$TEMPLATES_DIR/templates" ]; then
+            mv "$TEMPLATES_DIR/templates/"* "$TEMPLATES_DIR/"
+            rmdir "$TEMPLATES_DIR/templates"
+          fi
+          echo "::notice::Godot $GODOT_VERSION installed at $GODOT_BIN"
+
+      - name: Export macOS .app
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          echo "::group::Godot export log (macOS)"
+          "$GODOT_BIN" --headless --import 2>&1 | tail -20 || true
+          "$GODOT_BIN" --headless --export-release "macOS" "dist/AtomZero.app" 2>&1
+          echo "::endgroup::"
+          test -d "dist/AtomZero.app" || { echo "::error::AtomZero.app was not created"; exit 1; }
+
+      - name: Create distributable ZIP
+        run: |
+          cd dist
+          zip -r -y "AtomZero-${{ needs.prepare.outputs.version }}-macos.zip" AtomZero.app
+          ls -lh "AtomZero-${{ needs.prepare.outputs.version }}-macos.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: dist/AtomZero-${{ needs.prepare.outputs.version }}-macos.zip
+          retention-days: 14
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Linux build (.x86_64 → .deb + .rpm)
+  # ─────────────────────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux (.deb / .rpm)
+    needs: prepare
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download generated export_presets.cfg
+        uses: actions/download-artifact@v4
+        with:
+          name: export-presets
+          path: .
+
+      - name: Set up Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$HOME/godot"
+          mkdir -p "$GODOT_DIR"
+          BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
+          curl -L --fail -o "$GODOT_DIR/godot.zip" \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64.zip"
+          unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          TEMPLATES_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STABLE_LABEL}"
+          mkdir -p "$TEMPLATES_DIR"
+          curl -L --fail -o /tmp/templates.tpz \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_export_templates.tpz"
+          unzip -o /tmp/templates.tpz -d "$TEMPLATES_DIR"
+          if [ -d "$TEMPLATES_DIR/templates" ]; then
+            mv "$TEMPLATES_DIR/templates/"* "$TEMPLATES_DIR/"
+            rmdir "$TEMPLATES_DIR/templates"
+          fi
+          echo "::notice::Godot $GODOT_VERSION installed at $GODOT_BIN"
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends dpkg-dev rpm
+          echo "::notice::dpkg-dev and rpm installed"
+
+      - name: Export Linux binary
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          echo "::group::Godot export log (Linux)"
+          "$GODOT_BIN" --headless --import 2>&1 | tail -20 || true
+          "$GODOT_BIN" --headless --export-release "Linux" "dist/AtomZero.x86_64" 2>&1
+          echo "::endgroup::"
+          test -f "dist/AtomZero.x86_64" || { echo "::error::AtomZero.x86_64 was not created"; exit 1; }
+          chmod +x "dist/AtomZero.x86_64"
+
+      - name: Package .deb
+        run: |
+          bash tools/ci/package_linux.sh deb "${{ needs.prepare.outputs.version }}" "dist/AtomZero.x86_64"
+          test -f "dist/AtomZero-${{ needs.prepare.outputs.version }}-linux.deb"
+
+      - name: Package .rpm
+        run: |
+          bash tools/ci/package_linux.sh rpm "${{ needs.prepare.outputs.version }}" "dist/AtomZero.x86_64"
+          # .rpm is best-effort: if rpmbuild is unavailable the script warns and continues
+          ls -lh dist/*.rpm 2>/dev/null || echo "::notice::No .rpm produced (rpmbuild unavailable)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: |
+            dist/*.deb
+            dist/*.rpm
+          retention-days: 14
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Windows build (.exe → .zip)
+  # ─────────────────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows (.exe)
+    needs: prepare
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download generated export_presets.cfg
+        uses: actions/download-artifact@v4
+        with:
+          name: export-presets
+          path: .
+
+      - name: Set up Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$HOME/godot"
+          mkdir -p "$GODOT_DIR"
+          BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
+          # Use the Linux editor to cross-export a Windows build
+          curl -L --fail -o "$GODOT_DIR/godot.zip" \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64.zip"
+          unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          TEMPLATES_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STABLE_LABEL}"
+          mkdir -p "$TEMPLATES_DIR"
+          curl -L --fail -o /tmp/templates.tpz \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_export_templates.tpz"
+          unzip -o /tmp/templates.tpz -d "$TEMPLATES_DIR"
+          if [ -d "$TEMPLATES_DIR/templates" ]; then
+            mv "$TEMPLATES_DIR/templates/"* "$TEMPLATES_DIR/"
+            rmdir "$TEMPLATES_DIR/templates"
+          fi
+          echo "::notice::Godot $GODOT_VERSION installed at $GODOT_BIN"
+
+      - name: Export Windows .exe
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          echo "::group::Godot export log (Windows)"
+          "$GODOT_BIN" --headless --import 2>&1 | tail -20 || true
+          "$GODOT_BIN" --headless --export-release "Windows Desktop" "dist/AtomZero.exe" 2>&1
+          echo "::endgroup::"
+          test -f "dist/AtomZero.exe" || { echo "::error::AtomZero.exe was not created"; exit 1; }
+
+      - name: Create distributable ZIP
+        run: |
+          cd dist
+          zip -r -y "AtomZero-${{ needs.prepare.outputs.version }}-windows.zip" \
+            AtomZero.exe \
+            *.pck *.dll 2>/dev/null || \
+          zip -r -y "AtomZero-${{ needs.prepare.outputs.version }}-windows.zip" AtomZero.exe
+          ls -lh "AtomZero-${{ needs.prepare.outputs.version }}-windows.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/AtomZero-${{ needs.prepare.outputs.version }}-windows.zip
+          retention-days: 14
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Android build (.apk)
+  # ─────────────────────────────────────────────────────────────────────
+  build-android:
+    name: Build Android (.apk)
+    needs: prepare
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download generated export_presets.cfg
+        uses: actions/download-artifact@v4
+        with:
+          name: export-presets
+          path: .
+
+      - name: Set up Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$HOME/godot"
+          mkdir -p "$GODOT_DIR"
+          BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
+          curl -L --fail -o "$GODOT_DIR/godot.zip" \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64.zip"
+          unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          TEMPLATES_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STABLE_LABEL}"
+          mkdir -p "$TEMPLATES_DIR"
+          curl -L --fail -o /tmp/templates.tpz \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_export_templates.tpz"
+          unzip -o /tmp/templates.tpz -d "$TEMPLATES_DIR"
+          if [ -d "$TEMPLATES_DIR/templates" ]; then
+            mv "$TEMPLATES_DIR/templates/"* "$TEMPLATES_DIR/"
+            rmdir "$TEMPLATES_DIR/templates"
+          fi
+          echo "::notice::Godot $GODOT_VERSION installed at $GODOT_BIN"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0 cmdline-tools;latest'
+
+      - name: Set up Android NDK
+        run: |
+          # Godot 4.x requires NDK r23c (LTS) for the prebuilt Android libraries
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;23.2.8819162" || true
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/23.2.8819162" >> "$GITHUB_ENV"
+          echo "::notice::Android NDK 23.2 installed"
+
+      - name: Configure release keystore (if secrets available)
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::notice::No release keystore configured; generating a debug keystore"
+            KEYSTORE_PATH="$HOME/.android/debug.keystore"
+            mkdir -p "$(dirname "$KEYSTORE_PATH")"
+            keytool -keyalg RSA -genkeypair -alias androiddebugkey \
+              -keypass android -storepass android \
+              -keystore "$KEYSTORE_PATH" \
+              -dname "CN=Android Debug,O=Android,C=US" -validity 9999
+            echo "path=$KEYSTORE_PATH"       >> "$GITHUB_OUTPUT"
+            echo "user=androiddebugkey"      >> "$GITHUB_OUTPUT"
+            echo "store_pass=android"        >> "$GITHUB_OUTPUT"
+            echo "key_pass=android"          >> "$GITHUB_OUTPUT"
+            echo "is_debug=true"             >> "$GITHUB_OUTPUT"
+          else
+            KEYSTORE_PATH="$HOME/release.keystore"
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+            echo "path=$KEYSTORE_PATH"       >> "$GITHUB_OUTPUT"
+            echo "user=$KEYSTORE_USER"       >> "$GITHUB_OUTPUT"
+            echo "store_pass=$KEYSTORE_PASS" >> "$GITHUB_OUTPUT"
+            echo "key_pass=$KEY_PASS"        >> "$GITHUB_OUTPUT"
+            echo "is_debug=false"            >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Patch export_presets.cfg with keystore
+        env:
+          KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          KEYSTORE_USER: ${{ steps.keystore.outputs.user }}
+          STORE_PASS: ${{ steps.keystore.outputs.store_pass }}
+          KEY_PASS: ${{ steps.keystore.outputs.key_pass }}
+        run: |
+          # Inject keystore credentials into the Android preset
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("export_presets.cfg")
+          text = p.read_text(encoding="utf-8")
+          replacements = {
+              'keystore/debug=""': f'keystore/debug=""',
+              'keystore/debug_user=""': f'keystore/debug_user=""',
+              'keystore/debug_password=""': f'keystore/debug_password=""',
+              'keystore/release=""': f'keystore/release="{__import__("os").environ["KEYSTORE_PATH"]}"',
+              'keystore/release_user=""': f'keystore/release_user="{__import__("os").environ["KEYSTORE_USER"]}"',
+              'keystore/release_password=""': f'keystore/release_password="{__import__("os").environ["STORE_PASS"]}"',
+          }
+          # Also fill the generic keystore/debug fields used by Godot for debug exports
+          replacements['keystore/debug=""'] = f'keystore/debug="{__import__("os").environ["KEYSTORE_PATH"]}"'
+          replacements['keystore/debug_user=""'] = f'keystore/debug_user="{__import__("os").environ["KEYSTORE_USER"]}"'
+          replacements['keystore/debug_password=""'] = f'keystore/debug_password="{__import__("os").environ["STORE_PASS"]}"'
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+          p.write_text(text, encoding="utf-8")
+          print("[patch] Keystore credentials injected into export_presets.cfg")
+          PY
+
+      - name: Export Android .apk
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          echo "::group::Godot export log (Android)"
+          "$GODOT_BIN" --headless --import 2>&1 | tail -20 || true
+          "$GODOT_BIN" --headless --export-release "Android" "dist/AtomZero.apk" 2>&1
+          echo "::endgroup::"
+          test -f "dist/AtomZero.apk" || { echo "::error::AtomZero.apk was not created"; exit 1; }
+
+      - name: Rename APK with version
+        run: |
+          mv "dist/AtomZero.apk" "dist/AtomZero-${{ needs.prepare.outputs.version }}-android.apk"
+          ls -lh "dist/AtomZero-${{ needs.prepare.outputs.version }}-android.apk"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: dist/AtomZero-${{ needs.prepare.outputs.version }}-android.apk
+          retention-days: 14
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────
+  # iOS build (.ipa)
+  # ─────────────────────────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS (.ipa)
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download generated export_presets.cfg
+        uses: actions/download-artifact@v4
+        with:
+          name: export-presets
+          path: .
+
+      - name: Set up Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$HOME/godot"
+          mkdir -p "$GODOT_DIR"
+          BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
+          curl -L --fail -o "$GODOT_DIR/godot.zip" \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal.zip"
+          unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_macos.universal"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          TEMPLATES_DIR="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.${GODOT_STABLE_LABEL}"
+          mkdir -p "$TEMPLATES_DIR"
+          curl -L --fail -o /tmp/templates.tpz \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_export_templates.tpz"
+          unzip -o /tmp/templates.tpz -d "$TEMPLATES_DIR"
+          if [ -d "$TEMPLATES_DIR/templates" ]; then
+            mv "$TEMPLATES_DIR/templates/"* "$TEMPLATES_DIR/"
+            rmdir "$TEMPLATES_DIR/templates"
+          fi
+          echo "::notice::Godot $GODOT_VERSION installed at $GODOT_BIN"
+
+      - name: Configure iOS signing (if secrets available)
+        env:
+          CERT_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          CERT_PASS: ${{ secrets.IOS_CERTIFICATE_PASS }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          if [ -z "$CERT_BASE64" ]; then
+            echo "::notice::No iOS signing secrets configured; exporting an unsigned Xcode project"
+            # Patch the preset to export an Xcode project instead of .ipa
+            python3 - <<'PY'
+            import pathlib
+            p = pathlib.Path("export_presets.cfg")
+            text = p.read_text(encoding="utf-8")
+            text = text.replace(
+                'application/export_project_only=false',
+                'application/export_project_only=true'
+            )
+            text = text.replace(
+                'export_path="dist/AtomZero.ipa"',
+                'export_path="dist/ios_xcode_project"'
+            )
+            p.write_text(text, encoding="utf-8")
+            print("[patch] iOS preset set to export Xcode project (unsigned)")
+            PY
+            echo "EXPORT_PROJECT_ONLY=true" >> "$GITHUB_ENV"
+          else
+            echo "::notice::iOS signing secrets detected; configuring signing"
+            CERT_PATH="$HOME/ios_developer.p12"
+            echo "$CERT_BASE64" | base64 --decode > "$CERT_PATH"
+            PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            mkdir -p "$PROFILE_DIR"
+            echo "$PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/AtomZero.mobileprovision"
+            # Patch the preset with signing details
+            python3 - <<'PY'
+            import pathlib, os
+            p = pathlib.Path("export_presets.cfg")
+            text = p.read_text(encoding="utf-8")
+            text = text.replace(
+                'application/certificate=""',
+                f'application/certificate="{os.path.expanduser("~/ios_developer.p12")}"'
+            )
+            text = text.replace(
+                'application/certificate_password=""',
+                f'application/certificate_password="{os.environ["CERT_PASS"]}"'
+            )
+            text = text.replace(
+                'application/provisioning_profile=""',
+                'application/provisioning_profile="AtomZero"'
+            )
+            text = text.replace(
+                'application/export_method=2',
+                'application/export_method=0'  # 0 = development
+            )
+            p.write_text(text, encoding="utf-8")
+            print("[patch] iOS signing configured")
+            PY
+            echo "EXPORT_PROJECT_ONLY=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Export iOS
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          echo "::group::Godot export log (iOS)"
+          "$GODOT_BIN" --headless --import 2>&1 | tail -20 || true
+          if [ "$EXPORT_PROJECT_ONLY" = "true" ]; then
+            "$GODOT_BIN" --headless --export-release "iOS" "dist/ios_xcode_project" 2>&1
+            echo "::endgroup::"
+            test -d "dist/ios_xcode_project" || { echo "::error::iOS Xcode project was not created"; exit 1; }
+            # Build an unsigned .ipa from the Xcode project
+            echo "::group::xcodebuild (unsigned ipa)"
+            cd dist/ios_xcode_project
+            xcodebuild \
+              -project *.xcodeproj \
+              -scheme *.xcodeproj \
+              -configuration Release \
+              -sdk iphoneos \
+              -derivedDataPath build \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build 2>&1 | tail -30
+            # Locate the .app and package it into a .ipa
+            APP_PATH=$(find build -name "*.app" -path "*/Release-iphoneos/*" | head -1)
+            if [ -z "$APP_PATH" ]; then
+              APP_PATH=$(find build -name "*.app" | head -1)
+            fi
+            if [ -n "$APP_PATH" ]; then
+              PAYLOAD_DIR="../Payload"
+              mkdir -p "$PAYLOAD_DIR"
+              cp -r "$APP_PATH" "$PAYLOAD_DIR/"
+              cd ..
+              zip -r -y "AtomZero-${{ needs.prepare.outputs.version }}-ios-unsigned.ipa" Payload
+              rm -rf Payload
+              ls -lh "AtomZero-${{ needs.prepare.outputs.version }}-ios-unsigned.ipa"
+            else
+              echo "::error::No .app found after xcodebuild"
+              exit 1
+            fi
+            echo "::endgroup::"
+          else
+            "$GODOT_BIN" --headless --export-release "iOS" "dist/AtomZero.ipa" 2>&1
+            echo "::endgroup::"
+            test -f "dist/AtomZero.ipa" || { echo "::error::AtomZero.ipa was not created"; exit 1; }
+            mv "dist/AtomZero.ipa" "dist/AtomZero-${{ needs.prepare.outputs.version }}-ios.ipa"
+            ls -lh "dist/AtomZero-${{ needs.prepare.outputs.version }}-ios.ipa"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: |
+            dist/*.ipa
+          retention-days: 14
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Release: collect all artifacts and create a GitHub Release
+  # ─────────────────────────────────────────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: [prepare, build-macos, build-linux, build-windows, build-android, build-ios]
+    if: ${{ always() && needs.prepare.outputs.create_release == 'true' && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: |
+          echo "::group::Downloaded artifacts"
+          find artifacts -type f | sort
+          echo "::endgroup::"
+
+      - name: Stage release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( \
+            -name "*.zip" -o \
+            -name "*.deb" -o \
+            -name "*.rpm" -o \
+            -name "*.exe" -o \
+            -name "*.apk" -o \
+            -name "*.ipa" \
+          \) -exec cp {} release-assets/ \;
+          echo "::group::Release assets"
+          ls -lh release-assets/
+          echo "::endgroup::"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: AtomZero ${{ needs.prepare.outputs.version }}
+          body: |
+            # AtomZero ${{ needs.prepare.outputs.version }}
+
+            ## Downloads
+
+            | Platform | File |
+            |----------|------|
+            | macOS | `AtomZero-${{ needs.prepare.outputs.version }}-macos.zip` |
+            | Linux (.deb) | `AtomZero-${{ needs.prepare.outputs.version }}-linux.deb` |
+            | Linux (.rpm) | `AtomZero-${{ needs.prepare.outputs.version }}-linux.rpm` |
+            | Windows | `AtomZero-${{ needs.prepare.outputs.version }}-windows.zip` |
+            | Android | `AtomZero-${{ needs.prepare.outputs.version }}-android.apk` |
+            | iOS | `AtomZero-${{ needs.prepare.outputs.version }}-ios*.ipa` |
+
+            ## Installation
+
+            - **macOS**: Unzip and drag `AtomZero.app` to Applications.
+            - **Linux**: `sudo dpkg -i AtomZero-${{ needs.prepare.outputs.version }}-linux.deb` (or install the `.rpm`).
+            - **Windows**: Unzip and run `AtomZero.exe`.
+            - **Android**: Sideload the `.apk` (enable "Install from unknown sources").
+            - **iOS**: Load the `.ipa` via Xcode or AltStore.
+
+            ## Mods
+
+            This is the base game shell only.  Mods are distributed separately as
+            `.zip` files and placed in the `mods/` directory next to the executable.
+            See `doc/Mod_Development_Guide.md` for details.
+          files: release-assets/*
+          draft: false
+          prerelease: ${{ contains(needs.prepare.outputs.version, 'alpha') || contains(needs.prepare.outputs.version, 'beta') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "::notice::Released AtomZero ${{ needs.prepare.outputs.version }} — ${{ needs.prepare.outputs.tag }}"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Notify: create a GitHub issue on failure
+  # ─────────────────────────────────────────────────────────────────────
+  notify-failure:
+    name: Notify (on failure)
+    needs: [prepare, build-macos, build-linux, build-windows, build-android, build-ios]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Determine failed jobs
+        id: failed
+        run: |
+          JOBS=""
+          [ "${{ needs.build-macos.result }}" = "failure" ]   && JOBS="${JOBS}macos,"
+          [ "${{ needs.build-linux.result }}" = "failure" ]   && JOBS="${JOBS}linux,"
+          [ "${{ needs.build-windows.result }}" = "failure" ] && JOBS="${JOBS}windows,"
+          [ "${{ needs.build-android.result }}" = "failure" ] && JOBS="${JOBS}android,"
+          [ "${{ needs.build-ios.result }}" = "failure" ]     && JOBS="${JOBS}ios,"
+          JOBS="${JOBS%,}"
+          echo "jobs=${JOBS}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Failed jobs: ${JOBS}"
+
+      - name: Send failure notification
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+        run: |
+          python3 tools/ci/notify.py \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --tag "${{ needs.prepare.outputs.tag }}" \
+            --failed-jobs "${{ steps.failed.outputs.jobs }}" \
+            --labels "build-failure,ci"
