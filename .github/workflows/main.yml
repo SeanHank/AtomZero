@@ -383,14 +383,18 @@ jobs:
       - name: Install Android build template
         run: |
           # The Android Gradle build template ships inside the export
-          # templates as android_source.zip. Extract it to android/build/ —
-          # no extra download and guaranteed version-compatible.
+          # templates as android_source.zip. Extract it to android/build/.
+          # Godot also requires android/.build_version — a marker file whose
+          # content is the export-template folder name (e.g. "4.6.3.stable").
+          # Without it, Godot aborts with "no version info for it exists".
           set -euo pipefail
           TEMPLATES_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STABLE_LABEL}"
           mkdir -p android/build
           unzip -o "$TEMPLATES_DIR/android_source.zip" -d android/build
           chmod +x android/build/gradlew
+          printf '%s.%s\n' "$GODOT_VERSION" "$GODOT_STABLE_LABEL" > android/.build_version
           echo "::notice::Android build template installed at android/build/ (from android_source.zip)"
+          echo "::notice::Version marker written to android/.build_version ($(cat android/.build_version))"
 
       - name: Configure release keystore (if secrets available)
         id: keystore
