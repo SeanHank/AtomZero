@@ -269,7 +269,7 @@ See: [LICENSE](LICENSE)
 
 See: [DISCLAIMER.md](DISCLAIMER.md)
 
-> **Note on mods**: Individual mods may declare their own license in their `mod.json` file. The AGPLv3 license applies to the AtomZero engine kernel (`core/`) and project infrastructure. Mod authors are free to choose their own licenses for their mods.
+> **Note on mods**: Individual mods may declare their own license in their `mod.json` file. The AGPLv3 license applies to the AtomZero engine kernel (`core/`) and project infrastructure (`tools/`). Mod authors are free to choose their own licenses for their mods.
 
 ## Contact
 
