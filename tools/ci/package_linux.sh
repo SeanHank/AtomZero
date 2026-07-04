@@ -153,6 +153,19 @@ EOF
 
         tar -czf "$BUILD_DIR/SOURCES/${PKG_NAME}-${VERSION}.tar.gz" -C "$BUILD_DIR/SOURCES" "${PKG_NAME}-${VERSION}"
 
+        # Build %files entries for files that may or may not be present.
+        # .pck is separate by default but can be embedded in the binary;
+        # icon.svg is always present in this project but we guard it anyway.
+        RPM_PCK_ENTRY=""
+        if [ -f "$BINARY_DIR/$GAME_NAME.pck" ]; then
+            RPM_PCK_ENTRY="/usr/lib/$PKG_NAME/$GAME_NAME.pck"
+        fi
+        RPM_ICON_ENTRIES=""
+        if [ -f "$PROJECT_ROOT/icon.svg" ]; then
+            RPM_ICON_ENTRIES="/usr/lib/$PKG_NAME/icon.svg
+/usr/share/icons/hicolor/scalable/apps/${PKG_NAME}.svg"
+        fi
+
         # RPM spec
         cat > "$BUILD_DIR/SPECS/${PKG_NAME}.spec" <<EOF
 Name:       $PKG_NAME
@@ -170,6 +183,7 @@ Requires:   libXrandr
 Requires:   libXi
 Requires:   pulseaudio-libs
 AutoReqProv: no
+%global _missing_build_ids_terminate_build 0
 
 %description
 $DESCRIPTION
@@ -186,12 +200,13 @@ cp -r * %{buildroot}/
 %files
 %dir /usr/lib/$PKG_NAME
 /usr/lib/$PKG_NAME/$BINARY_BASE
+$RPM_PCK_ENTRY
+$RPM_ICON_ENTRIES
 %dir /usr/lib/$PKG_NAME/mods
 %dir /usr/lib/$PKG_NAME/saves
 %dir /usr/lib/$PKG_NAME/.cache
 %dir /usr/lib/$PKG_NAME/logs
 /usr/share/applications/${PKG_NAME}.desktop
-/usr/share/icons/hicolor/scalable/apps/${PKG_NAME}.svg
 
 %post
 chmod 755 /usr/lib/$PKG_NAME/$BINARY_BASE
