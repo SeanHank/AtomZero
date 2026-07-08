@@ -236,7 +236,7 @@ Contributions are welcomed! This project follows a standard fork-and-PR workflow
 ### Getting Started
 
 1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/<your-username>/atom-zero.git`
+2. **Clone** your fork: `git clone https://github.com/<your-username>/AtomZero.git`
 3. **Create a branch**: `git checkout -b feature/my-feature`
 4. **Make changes** following the guidelines below
 5. **Commit** with clear messages
