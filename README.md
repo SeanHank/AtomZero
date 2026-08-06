@@ -1,6 +1,6 @@
 # AtomZero: Zero is the cradle of all possibilities. 
 
-_"Be a light, not a judge. Be a model, not a critic." — Stephen Covey_
+_"Be a light, not a judge. Be a model, not a critic. " — Stephen Covey_
 
 [![Godot Engine](https://img.shields.io/badge/Godot-4.6.3-478CBF?logo=godotengine&logoColor=white)](https://godotengine.org)
 [![License](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
