@@ -75,11 +75,14 @@ jobs:
           unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
           GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64"
           chmod +x "$GODOT_BIN"
+          # Expose the binary both via $GITHUB_ENV (like the build jobs) and
+          # as "godot" on $PATH, so tools/run_tests.py can resolve either way.
+          ln -s "$GODOT_BIN" "$GODOT_DIR/godot"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          echo "$GODOT_DIR" >> "$GITHUB_PATH"
           echo "::notice::Godot $GODOT_VERSION installed at $GODOT_BIN"
 
       - name: Run test suite with coverage gate
-        env:
-          GODOT_BIN: "${{ env.GODOT_BIN }}"
         run: |
           python3 tools/run_tests.py -n 8 --cov-fail-under 100
 
