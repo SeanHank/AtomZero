@@ -1,11 +1,14 @@
-name: Build and Release
+name: AtomZero CI
 
-# AtomZero CI — builds macOS, Linux, Windows, Android, and iOS distributables
-# from the core/ shell + icon.svg, then uploads them to a GitHub Release.
+# AtomZero CI — runs the functional test suite with a 100% coverage gate on
+# every push and pull request, and builds macOS, Linux, Windows, Android, and
+# iOS distributables from the core/ shell + icon.svg, uploading them to a
+# GitHub Release on version tags.
 #
 # Triggers:
-#   1. Push of a version tag matching v* (e.g. v2026.6.30) → build + release
-#   2. Manual dispatch (workflow_dispatch) → build + optional release
+#   1. Push / pull_request (any branch)       -> test job only
+#   2. Push of a version tag matching v* (e.g. v2026.9.0) -> tests + all builds + release
+#   3. Manual dispatch (workflow_dispatch)    -> tests + all builds + optional release
 #
 # Required secrets (see tools/ci/README.md for details):
 #   ANDROID_KEYSTORE_BASE64   Base64-encoded release keystore (optional, debug used if absent)
@@ -19,14 +22,13 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'
+  pull_request:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (e.g. 2026.6.30)'
+        description: 'Version to build (e.g. 2026.9.0)'
         required: true
-        default: '2026.6.30'
+        default: '2026.9.0'
       create_release:
         description: 'Create a GitHub Release after builds succeed'
         type: boolean
@@ -48,10 +50,48 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
+  # Test: functional suite + 100% coverage gate (every push / PR / dispatch)
+  # ─────────────────────────────────────────────────────────────────────
+  test:
+    name: Tests + coverage gate
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Godot ${{ env.GODOT_VERSION }} (headless editor)
+        run: |
+          set -euo pipefail
+          GODOT_DIR="$HOME/godot"
+          mkdir -p "$GODOT_DIR"
+          BASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STABLE_LABEL}"
+          curl -L --fail -o "$GODOT_DIR/godot.zip" \
+            "${BASE_URL}/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64.zip"
+          unzip -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}-${GODOT_STABLE_LABEL}_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "::notice::Godot $GODOT_VERSION installed at $GODOT_BIN"
+
+      - name: Run test suite with coverage gate
+        env:
+          GODOT_BIN: "${{ env.GODOT_BIN }}"
+        run: |
+          python3 tools/run_tests.py -n 8 --cov-fail-under 100
+
+  # ─────────────────────────────────────────────────────────────────────
   # Prepare: resolve version, generate export_presets.cfg, share artifact
+  # Only runs for tag pushes and manual dispatch; skipped on branch pushes
+  # and pull requests (which run the test job only). All build jobs depend
+  # on this job, so a skipped prepare skips the whole build chain.
   # ─────────────────────────────────────────────────────────────────────
   prepare:
     name: Prepare (version + presets)
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
@@ -656,7 +696,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release
-    needs: [prepare, build-macos, build-linux, build-windows, build-android, build-ios]
+    needs: [prepare, test, build-macos, build-linux, build-windows, build-android, build-ios]
     if: ${{ always() && needs.prepare.outputs.create_release == 'true' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:
@@ -737,7 +777,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   notify-failure:
     name: Notify (on failure)
-    needs: [prepare, build-macos, build-linux, build-windows, build-android, build-ios]
+    needs: [prepare, test, build-macos, build-linux, build-windows, build-android, build-ios]
     if: ${{ always() && contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:
@@ -753,6 +793,7 @@ jobs:
         id: failed
         run: |
           JOBS=""
+          [ "${{ needs.test.result }}" = "failure" ]         && JOBS="${JOBS}tests,"
           [ "${{ needs.build-macos.result }}" = "failure" ]   && JOBS="${JOBS}macos,"
           [ "${{ needs.build-linux.result }}" = "failure" ]   && JOBS="${JOBS}linux,"
           [ "${{ needs.build-windows.result }}" = "failure" ] && JOBS="${JOBS}windows,"

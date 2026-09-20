@@ -12,15 +12,15 @@ Environment variables (read automatically):
     GITHUB_SERVER_URL     e.g. "https://github.com"
     GITHUB_TOKEN          token with `issues:write` scope (for issue creation)
     GITHUB_EVENT_NAME     e.g. "push" or "workflow_dispatch"
-    GITHUB_REF            e.g. "refs/tags/v2026.6.30"
+    GITHUB_REF            e.g. "refs/tags/v2026.9.0"
     NOTIFY_WEBHOOK_URL    optional Slack/Discord webhook (if set, posts a message)
 
 Usage:
     # Create a GitHub issue
-    python3 tools/ci/notify.py --version 2026.6.30 --failed-jobs macos,linux
+    python3 tools/ci/notify.py --version 2026.9.0 --failed-jobs macos,linux
 
     # Just print a summary (no GitHub API calls)
-    python3 tools/ci/notify.py --dry-run --version 2026.6.30 --failed-jobs macos
+    python3 tools/ci/notify.py --dry-run --version 2026.9.0 --failed-jobs macos
 """
 
 import argparse
@@ -131,7 +131,7 @@ def post_webhook(url: str, title: str, body: str) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Send build-failure notifications.")
     parser.add_argument("--version", default="", help="Game version that was built")
-    parser.add_argument("--tag", default="", help="Git tag (e.g. v2026.6.30)")
+    parser.add_argument("--tag", default="", help="Git tag (e.g. v2026.9.0)")
     parser.add_argument(
         "--failed-jobs",
         default="",

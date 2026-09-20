@@ -35,6 +35,10 @@ logs/
 coverage.json
 .coverage/
 
+# Python tooling
+__pycache__/
+*.pyc
+
 # IDE
 .idea/
 *.swp

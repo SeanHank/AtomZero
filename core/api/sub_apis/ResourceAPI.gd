@@ -14,6 +14,14 @@ func _init(vfs: ModVFS, mod_id: String, world_id: String = "") -> void:
 	_world_id = world_id
 
 
+# Resolve a load target: mods are loaded through their on-disk real path
+# (the same strategy ModLoaderCore uses, matching the mod:// cache-key scheme).
+# Returns "" for unresolvable mods so callers can surface a clean miss.
+func _load_target(actual_mod: String, actual_path: String) -> String:
+	var virtual_path := _build_virtual_path(actual_mod, actual_path)
+	return _vfs.resolve_virtual_path(virtual_path)
+
+
 # Synchronously load a resource (blocking)
 # mod_id: the Mod the resource belongs to (defaults to the current Mod)
 # relative_path: path relative to the Mod root directory
@@ -27,8 +35,10 @@ func load(mod_id: String = "", relative_path: String = "") -> Resource:
 		actual_mod = _mod_id
 	if actual_mod.is_empty():
 		actual_mod = _mod_id
-	var virtual_path := _build_virtual_path(actual_mod, actual_path)
-	return ResourceLoader.load(virtual_path, "", ResourceLoader.CACHE_MODE_REUSE)
+	var target := _load_target(actual_mod, actual_path)
+	if target.is_empty():
+		return null
+	return ResourceLoader.load(target, "", ResourceLoader.CACHE_MODE_REUSE)
 
 
 # Asynchronously request a load (non-blocking)
@@ -40,8 +50,9 @@ func load_threaded(mod_id: String = "", relative_path: String = "") -> void:
 		actual_mod = _mod_id
 	if actual_mod.is_empty():
 		actual_mod = _mod_id
-	var virtual_path := _build_virtual_path(actual_mod, actual_path)
-	ResourceLoader.load_threaded_request(virtual_path)
+	var target := _load_target(actual_mod, actual_path)
+	if not target.is_empty():
+		ResourceLoader.load_threaded_request(target)
 
 
 # Get the threaded load status
@@ -54,8 +65,10 @@ func get_load_threaded_status(mod_id: String = "", relative_path: String = "") -
 		actual_mod = _mod_id
 	if actual_mod.is_empty():
 		actual_mod = _mod_id
-	var virtual_path := _build_virtual_path(actual_mod, actual_path)
-	return ResourceLoader.load_threaded_get_status(virtual_path)
+	var target := _load_target(actual_mod, actual_path)
+	if target.is_empty():
+		return ResourceLoader.THREAD_LOAD_FAILED
+	return ResourceLoader.load_threaded_get_status(target)
 
 
 # Get the threaded load result
@@ -67,8 +80,10 @@ func get_load_threaded(mod_id: String = "", relative_path: String = "") -> Resou
 		actual_mod = _mod_id
 	if actual_mod.is_empty():
 		actual_mod = _mod_id
-	var virtual_path := _build_virtual_path(actual_mod, actual_path)
-	return ResourceLoader.load_threaded_get(virtual_path)
+	var target := _load_target(actual_mod, actual_path)
+	if target.is_empty():
+		return null
+	return ResourceLoader.load_threaded_get(target)
 
 
 # Check whether a resource exists

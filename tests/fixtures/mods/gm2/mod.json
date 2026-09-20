@@ -1,0 +1,22 @@
+{
+  "mod_id": "gm2",
+  "name": "Test Global Mod 2",
+  "version": "2.1.0",
+  "game_version": ">=2026.9.0,<2027.0.0",
+  "author": "atom-zero-tests",
+  "description": "Fixture global mod depending on gm1",
+  "url": "",
+  "license": "MIT",
+  "mod_type": "global",
+  "entry": "gm2.gd",
+  "dependencies": [
+    {"id": "gm1", "version": "^1.0.0"}
+  ],
+  "soft_dependencies": [],
+  "load_order": {
+    "priority": 900,
+    "load_before": [],
+    "load_after": []
+  },
+  "resource_overrides": []
+}

@@ -1,0 +1,20 @@
+{
+  "mod_id": "gm1",
+  "name": "Test Global Mod 1",
+  "version": "1.0.0",
+  "game_version": ">=2026.9.0,<2027.0.0",
+  "author": "atom-zero-tests",
+  "description": "Fixture global mod with no dependencies",
+  "url": "",
+  "license": "MIT",
+  "mod_type": "global",
+  "entry": "gm1.gd",
+  "dependencies": [],
+  "soft_dependencies": [],
+  "load_order": {
+    "priority": 1000,
+    "load_before": [],
+    "load_after": []
+  },
+  "resource_overrides": []
+}

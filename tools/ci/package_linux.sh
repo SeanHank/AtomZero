@@ -6,7 +6,7 @@
 #   package_linux.sh <format> <version> <binary_path> [project_root]
 #
 #   format        "deb" or "rpm"
-#   version       Game version string (e.g. 2026.6.30)
+#   version       Game version string (e.g. 2026.9.0)
 #   binary_path   Path to the exported Godot binary (e.g. dist/AtomZero.x86_64)
 #   project_root  Project root directory (defaults to script's ../../)
 #
