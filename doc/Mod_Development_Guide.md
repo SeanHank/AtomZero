@@ -1,9 +1,11 @@
 # AtomZero Mod Development Guide
 
-> **Engine Version**: Godot 4.6.3  
-> **Game Name**: AtomZero  
-> **Game Version**: `2026.6.30`  
-> **Document Version**: v2026.6.30   
+> **Engine Version**: Godot 4.6.3
+> **Game Name**: AtomZero
+> **Game Version**: `2026.9.0` (Release version, performs SemVer range matching when loading Mods)
+> **Document Version**: v2026.9.0
+> **Companion Design Document**: [ModLoader_Technical_Design.md](./ModLoader_Technical_Design.md)
+> **Intended Audience**: Third-party Mod developers, content creators, Modpack authors
 
 ---
 
@@ -27,7 +29,7 @@
 
 ## 1. Overview and Core Concepts
 
-### 1.1 AtomZero's "Zero" Philosophy
+### 1.1 AtomZero's "Empty Shell" Philosophy
 
 AtomZero adopts an "Empty Shell + fully Mod-driven" architecture. The game shell only provides infrastructure such as the Mod Loader kernel, EventBus, Virtual File System, Registry, Persistence Service, and logging system. **All gameplay, blocks, items, entities, UI, and world generation are provided by Mods**.
 
@@ -46,7 +48,7 @@ AtomZero divides Mods into two categories, differing in **scope and lifecycle**:
 | **Global Mod** | Process-level, effective across all worlds | `mods/` | Game startup Bootstrap phase | Core block library, render layer, UI framework, input system, network protocol |
 | **World Mod** | Single world isolation | `saves/<WorldName>/mods/` | When the player enters the corresponding world | World-specific gameplay, custom biomes, story scripts, world rules |
 
-### 1.3 Cross-layer Dependency Rules
+### 1.3 Cross-layer Dependency Rules (Important)
 
 - **World Mod can depend on Global Mod**: Allowed. When World Mods load, all Global Mods are already ready.
 - **Global Mod cannot depend on World Mod**: Not allowed. Global Mods load before World Mods, at which point World Mods do not yet exist.
@@ -60,8 +62,8 @@ When developing Mods, keep the following principles in mind (see Design Document
 2. **Dependency Injection Principle**: Mods obtain services through `ModAPI` and do not directly access kernel implementations.
 3. **Event-driven Principle**: Communication between Mods should preferably go through the EventBus to avoid hard references.
 4. **Isolation Principle**: World Mods data is strongly bound to the world save and fully unloaded on world switch.
-5. **No Exception Isolation Principle**: Errors in Mod callbacks are not caught and may cause crashes. See §10.
-6. **No Permission Sandbox Principle**: No permission control or code signing is provided; only hash whitelist integrity verification is offered. 
+5. **No Exception Isolation Principle**: Errors in Mod callbacks are not caught and may cause crashes. See §10 and Design Document §8.3.
+6. **No Permission Sandbox Principle**: No permission control or code signing is provided; only hash whitelist integrity verification is offered. See Design Document §9.
 
 ---
 
@@ -71,19 +73,19 @@ When developing Mods, keep the following principles in mind (see Design Document
 
 | Tool | Version Requirement | Use |
 |------|---------|------|
-| Godot Engine | **4.6.3** (must match exactly) | Editor, runtime, resource import |
+| Godot Engine | **4.6.3+** (4.6.3 or any newer 4.6/4.x) | Editor, runtime, resource import |
 | Text editor | Any editor with GDScript support | Writing scripts (VSCode + GDScript plugin recommended) |
 | Git | Any version | Version control (strongly recommended) |
 | ZIP tool | Any | Release packaging (engine built-in tools also work, see §11) |
 
-> **Version Match Warning**: You must use Godot 4.6.3. Using other versions may cause the resource import cache (`.godot/imported/`) to be incompatible, and release Mods will fail to load.
+> **Version Warning**: AtomZero officially supports **Godot 4.6.3+** (any version 4.6.3 or newer). The CI test pipeline validates on Godot 4.6.3. Using a much older Godot (pre-4.6.3) may cause the resource import cache (`.godot/imported/`) to be incompatible, and release Mods will fail to load.
 
 ### 2.2 Obtaining and Configuring the Project
 
 #### 2.2.1 Clone the Shell Project
 
 ```bash
-git clone https://github.com/SeanHank/AtomZero.git atom-zero
+git clone <atom-zero-repo-url> atom-zero
 cd atom-zero
 ```
 
@@ -101,11 +103,11 @@ atom-zero/
 
 #### 2.2.2 Open the Project
 
-Launch Godot 4.6.3, select "Open Project", and locate `atom-zero/project.godot`. When opening for the first time, the editor will perform a resource import scan; wait for it to complete.
+Launch Godot 4.6.3+ (4.6.3 or newer), select "Open Project", and locate `atom-zero/project.godot`. When opening for the first time, the editor will perform a resource import scan; wait for it to complete.
 
 #### 2.2.3 Confirm Development Mode Is Enabled
 
-Open `core/bootstrap/Bootstrap.gd` and confirm:
+Open [core/bootstrap/Bootstrap.gd](file:///Users/admin/GodotProjects/atom-zero/core/bootstrap/Bootstrap.gd) and confirm:
 
 ```gdscript
 const MOD_DEV_MODE: bool = true
@@ -129,18 +131,32 @@ mods/my_first_mod/
 
 ### 2.4 Run and Verify
 
-1. Click "Run" in the Godot editor.
+1. Click "Run" (F5) in the Godot editor.
 2. After Bootstrap starts, it will scan the `mods/` directory.
-3. When your Mod is loaded for the first time, the HashVerifier will automatically calculate the file hash and **store it in the whitelist** (TOFU model). If the file is modified, it is marked `HASH_MISMATCH` and loading is refused.
+3. When your Mod is loaded for the first time, the HashVerifier will automatically calculate the file hash and **store it in the whitelist** (TOFU model, no confirmation dialog is shown). If the file is modified, it is marked `HASH_MISMATCH` and loading is refused.
 4. On subsequent launches, if the file is unchanged, verification passes automatically.
 5. Open the built-in console (press the `/` key) and enter `mods list` to see whether your Mod is loaded.
 
 > If you do not see your Mod, check:
 > - Whether `mod.json` conforms to the §3.2 specification
 > - Whether there are ERROR logs in the console (see §10)
-> - Whether the `game_version` field contains `2026.6.30`
+> - Whether the `game_version` field contains `2026.9.0`
 
-### 2.5 Project-level `.gitignore` Recommendations
+### 2.5 Recommended Editor Configuration
+
+#### 2.5.1 VSCode (Recommended)
+
+Install the following extensions:
+
+- **GDScript** (George Mountcastle or official): Syntax highlighting, auto-completion
+- **EditorConfig**: Keep indentation style consistent
+- **JSON Language Server**: Validate `mod.json` format
+
+#### 2.5.2 Godot Editor External Editor
+
+Configure the use of an external editor in `Editor → Editor Settings → Text Editor → External`, with the path pointing to VSCode.
+
+### 2.6 Project-level `.gitignore` Recommendations
 
 If your Mod is in a standalone Git repository, it is recommended to ignore the following:
 
@@ -202,8 +218,8 @@ Each Mod root directory must contain a `mod.json`. The complete fields are as fo
     "mod_id": "atom_core_blocks",
     "name": "AtomZero Core Blocks",
     "version": "1.0.0",
-    "game_version": ">=2026.6.30,<2027.0.0",
-    "author": "AtomLife Studio",
+    "game_version": ">=2026.9.0,<2027.0.0",
+    "author": "AtomZero Team",
     "description": "Core block definition library, providing basic block types.",
     "url": "https://example.com/atom_core_blocks",
     "license": "MIT",
@@ -242,7 +258,7 @@ Each Mod root directory must contain a `mod.json`. The complete fields are as fo
 | `mod_id` | string | Yes | Globally unique identifier, lowercase snake_case `^[a-z][a-z0-9_]*$` |
 | `name` | string | Yes | Display name (human-readable) |
 | `version` | string | Yes | SemVer semantic version, e.g. `1.0.0` |
-| `game_version` | string | Yes | Compatible game version range (SemVer constraint). Current game version `2026.6.30` is a release version, **strictly checked** |
+| `game_version` | string | Yes | Compatible game version range (SemVer constraint). Current game version `2026.9.0` is a release version, **strictly checked** |
 | `author` | string | No | Author |
 | `description` | string | No | Description |
 | `url` | string | No | Project homepage URL |
@@ -279,7 +295,7 @@ Each object in the `dependencies` and `soft_dependencies` arrays:
 > - Release versions (e.g. `1.0.0`, `1.2.0`): Perform SemVer range matching check. If it does not match, the Mod is marked `INVALID_VERSION` and loading is skipped.
 > - Alpha/Beta versions (e.g. `Alpha_29062026`): **Skip checking**; all Mods are considered compatible.
 >
-> The current game is `2026.6.30` release version. Make sure your `game_version` range includes `2026.6.30`. The most permissive form is `"*"`.
+> The current game is `2026.9.0` release version. Make sure your `game_version` range includes `2026.9.0`. The most permissive form is `"*"`.
 
 ### 3.3 Naming Conventions
 
@@ -287,12 +303,22 @@ Each object in the `dependencies` and `soft_dependencies` arrays:
 |------|------|------|
 | Mod ID | lowercase snake_case | `atom_core_blocks` |
 | Script files | lowercase snake_case `.gd` | `stone_block.gd` |
+| Class names | UpperCamelCase, prefixed with Mod ID abbreviation to avoid conflicts | `ACB_StoneBlock` |
 | Resource paths | lowercase snake_case | `assets/textures/stone_diffuse.png` |
 | Registration identifiers | `<mod_id>:<name>` | `atom_core_blocks:stone` |
 | Event names | lowercase snake_case with namespace | `atom_core_blocks:block_placed` |
 | Config keys | lowercase snake_case | `max_stack_size` |
 
-> **Class Name Note**: Mod scripts **should not** declare `class_name`. Reason: In Development Mode, Mod source code resides in `res://`, and its `class_name` will be registered in `.godot/global_script_class_cache.cfg`, which is packaged with the PCK for release. When a release build extracts a script with the same name from a `.zip`, it will cause a "Class hides a global script class" conflict that leads to loading failure. The loader instantiates via path `load()` + `new()` and does not rely on class name lookup, so omitting `class_name` does not affect functionality. The same applies to block/entity classes inside a Mod — `class_name` should be omitted.
+> **class_name Note (Important)**: Mod scripts **should not** declare `class_name`. Reason: In Development Mode, Mod source code resides in `res://`, and its `class_name` will be registered in `.godot/global_script_class_cache.cfg`, which is packaged with the PCK for release. When a release build extracts a script with the same name from a `.zip`, it will cause a "Class hides a global script class" conflict that leads to loading failure. The loader instantiates via path `load()` + `new()` and does not rely on class name lookup, so omitting `class_name` does not affect functionality. The same applies to block/entity classes inside a Mod — `class_name` should be omitted.
+
+### 3.4 Non-existent Fields (Important)
+
+The following fields **do not exist** in `mod.json`; do not add them (even if added, they will be ignored):
+
+- `permissions`: No permission control system
+- `signature`: No code signing
+- `incompatibilities`: Removed from previous versions
+- `min_engine_version` / `max_engine_version`: Use `game_version` instead
 
 ---
 
@@ -306,7 +332,7 @@ Requirements analysis → Create Mod directory → Write mod.json → Write main
 
 ### 4.2 Main Entry Interface
 
-The Mod main entry must implement the `IGlobalMod` (Global Mod) or `IWorldMod` (World Mod) interface. These two interfaces are defined in `core/api/interfaces/IGlobalMod.gd` and `core/api/interfaces/IWorldMod.gd`.
+The Mod main entry must implement the `IGlobalMod` (Global Mod) or `IWorldMod` (World Mod) interface. These two interfaces are defined in [core/api/interfaces/IGlobalMod.gd](file:///Users/admin/GodotProjects/atom-zero/core/api/interfaces/IGlobalMod.gd) and [core/api/interfaces/IWorldMod.gd](file:///Users/admin/GodotProjects/atom-zero/core/api/interfaces/IWorldMod.gd).
 
 #### 4.2.1 IGlobalMod Callbacks
 
@@ -745,7 +771,7 @@ The above declaration means: when any code requests `mod://global/atom_core_bloc
 
 ### 6.6 Resource Size Recommendations
 
-This design **imposes no restrictions on Mod resource size**. Hash verification uses streaming chunked reading (64KB chunks), with constant memory usage regardless of file size.
+This design **imposes no restrictions on Mod resource size** (see Design Document §10.1.5 for details). Hash verification uses streaming chunked reading (64KB chunks), with constant memory usage regardless of file size.
 
 However, considering startup time, it is recommended:
 
@@ -868,7 +894,7 @@ func _on_tick(payload: Dictionary) -> void:
 
 ### 7.5 Built-in Event List
 
-All built-in events are defined in `core/event/events/GameEvents.gd` accessed via the `GameEvents` class name constants.
+All built-in events are defined in [core/event/events/GameEvents.gd](file:///Users/admin/GodotProjects/atom-zero/core/event/events/GameEvents.gd), accessed via the `GameEvents` class name constants.
 
 #### 7.5.1 Lifecycle Events
 
@@ -1486,7 +1512,7 @@ my_mod-1.0.0.zip
 
 ### 11.3 manifest.json Format
 
-`manifest.json` is automatically generated by the packaging tool and records the `size` + `sha256` of each binary file, used for O(1) stat checks during hash verification.
+`manifest.json` is automatically generated by the packaging tool and records the `size` + `sha256` of each binary file, used for O(1) stat checks during hash verification (see Design Document §9.2.3 for details).
 
 ```json
 {
@@ -1495,7 +1521,7 @@ my_mod-1.0.0.zip
     "generated_at": "2026-06-29T10:00:00Z",
     "binary_files": {
         "assets/textures/my_texture.png": { "size": 1048576, "sha256": "abc123..." },
-        "assets/sounds/break.ogg": { "size": 32768, "sha256": "abc123..." }
+        "assets/sounds/break.ogg": { "size": 32768, "sha256": "ghi789..." }
     }
 }
 ```
@@ -1560,7 +1586,7 @@ Before releasing a Mod, check the following:
 - [ ] `mod.json` fields are complete and valid
 - [ ] `mod_id` matches `^[a-z][a-z0-9_]*$`
 - [ ] `version` conforms to SemVer
-- [ ] `game_version` includes `2026.6.30` (e.g. `>=2026.6.30,<2027.0.0`)
+- [ ] `game_version` includes `2026.9.0` (e.g. `>=2026.9.0,<2027.0.0`)
 - [ ] `entry` is correct
 - [ ] `dependencies` lists all Hard Dependencies
 - [ ] Class names have a Mod ID prefix to avoid conflicts
@@ -1583,7 +1609,7 @@ Before releasing a Mod, check the following:
 
 ### 11.7 Version Management Recommendations
 
-Follow [SemVer](https://semver.org/):
+Follow [SemVer](https://semver.org/lang/zh-CN/):
 
 - `MAJOR`: Incompatible API changes (such as modifying registration IDs, deleting blocks)
 - `MINOR`: Backward-compatible feature additions
@@ -1607,10 +1633,10 @@ Example: `1.0.0` → `1.0.1` (bug fix) → `1.1.0` (add new blocks) → `2.0.0` 
    ```
    If it says "invalid mod.json", check the JSON format (use a JSON validator) and whether all required fields are present.
 
-2. **Check whether `game_version` includes `2026.6.30`**:
+2. **Check whether `game_version` includes `2026.9.0`**:
    ```json
-   "game_version": ">=2026.6.30,<2027.0.0"  // ✅
-   "game_version": ">=2027.0.0"              // ❌ Does not include 2026.6.30
+   "game_version": ">=2026.9.0,<2027.0.0"  // ✅
+   "game_version": ">=2027.0.0"              // ❌ Does not include 2026.9.0
    ```
 
 3. **Check whether Hard Dependencies are satisfied**:
@@ -1864,7 +1890,7 @@ mods/atom_demo_blocks/
     "mod_id": "atom_demo_blocks",
     "name": "AtomZero Demo Blocks",
     "version": "1.0.0",
-    "game_version": ">=2026.6.30,<2027.0.0",
+    "game_version": ">=2026.9.0,<2027.0.0",
     "author": "Demo Author",
     "description": "Demo Mod, adds ruby and sapphire blocks.",
     "license": "MIT",
@@ -2059,3 +2085,30 @@ log level <level>            # Set log level
 | `CIRCULAR_DEP` | Circular Dependency |
 | `HASH_MISMATCH` | Hash verification failed |
 | `UNTRUSTED` | Reserved status, currently unused (auto-trusted on first load) |
+
+---
+
+## Appendix B: Features Explicitly Not Implemented (Developer Notice)
+
+When developing Mods, note that the following features **do not exist**; do not attempt to use them:
+
+| Feature | Decision | Alternative |
+|------|------|---------|
+| Runtime exception isolation (try/catch) | Not implemented | Manually validate input, avoid error propagation |
+| Code Hot Reload | Not implemented | Data Hot Reload (data only); code changes require restart |
+| Permission control system | Not implemented | All Mods have the same API access capabilities |
+| Code signing | Not implemented | Hash whitelist (TOFU) verifies integrity |
+| Data migration mechanism | Not implemented | Mod maintains its own `_version` field and migrates |
+| Save schema versioning | Not implemented | JSON lenient parsing; Mod handles compatibility itself |
+| Reverse cross-layer dependency (Global→World) | Not implemented | Global Mod probes at runtime via `_on_world_load` |
+| `incompatibilities` mutual exclusion detection | Not implemented | Removed from previous versions |
+| `mod://` protocol integration in editor | Not implemented | Use the real path `res://mods/<mod_id>/` during development |
+| TOFU trust confirmation dialog | Not implemented | Auto-trust on first load, no user confirmation dialog is shown |
+| Path case normalization | Not implemented | Always use lowercase naming |
+| Static scanning for dangerous APIs | Not implemented | Without a sandbox, static scanning can be bypassed |
+
+---
+
+**End of Document**
+
+> This document is based on the [AtomZero Technical Design Document v2026.9.0](./ModLoader_Technical_Design.md). If the technical design document is updated, this guide will be revised in sync. If any discrepancy is found between this document and actual behavior, the technical design document prevails.

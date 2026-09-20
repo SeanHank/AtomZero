@@ -715,6 +715,12 @@ jobs:
             - **Windows**: Unzip and run `AtomZero.exe`.
             - **Android**: Sideload the `.apk` (enable "Install from unknown sources").
             - **iOS**: Load the `.ipa` via Xcode or AltStore.
+
+            ## Mods
+
+            This is the base game shell only.  Mods are distributed separately as
+            `.zip` files and placed in the `mods/` directory next to the executable.
+            See `doc/Mod_Development_Guide.md` for details.
           files: release-assets/*
           draft: false
           prerelease: ${{ contains(needs.prepare.outputs.version, 'alpha') || contains(needs.prepare.outputs.version, 'beta') }}

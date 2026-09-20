@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+
+# Godot 4+ specific ignores
+.godot/
+/android/
+*.uid
+*.import
+
+# Runtime-generated mod data (per-user / per-machine)
+mods/*/config/
+mods/*/data/
+saves/*/mods/*/config/
+saves/*/mods/*/data/
+saves/*/region/
+
+# Hash whitelist (per-user TOFU trust)
+hash_whitelist.json
+
+# Mod caches
+.cache/
+cache/
+
+# Logs (runtime + test runs)
+logs/
+*.log
+
+# Test-run time directories (written only inside throwaway instrumented copies)
+.runtime/
+.test_tmp/
+
+# Build / release artifacts
+/dist/
+/release/
+coverage.json
+.coverage/
+
+# IDE
+.idea/
+*.swp

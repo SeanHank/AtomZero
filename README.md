@@ -1,14 +1,14 @@
-# AtomZero: Zero is the cradle of all possibilities. 
+# AtomZero
 
-_"Be a light, not a judge. Be a model, not a critic. " — Stephen Covey_
+_Be a light, not a judge. Be a model, not a critic. — Stephen Covey_
 
-[![Godot Engine](https://img.shields.io/badge/Godot-4.6.3-478CBF?logo=godotengine&logoColor=white)](https://godotengine.org)
+[![Godot Engine](https://img.shields.io/badge/Godot-4.6.3%2B-478CBF?logo=godotengine&logoColor=white)](https://godotengine.org)
 [![License](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-lightgrey)](#environment-requirements)
 
 ---
 
-## Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Key Features](#key-features)
@@ -33,7 +33,7 @@ The main scene is an empty `Control` node. The sole autoload is `Bootstrap`, whi
 
 This architecture enables:
 - **Total customization** — every aspect of gameplay is moddable
-- **Clean separation** — the engine kernel (`core/`) is never modified; all content lives in `mods/`
+- **Clean separation** — the engine kernel `core/` is never modified; all content lives in `mods/`
 - **World-scoped isolation** — World Mods are loaded/unloaded per world, preventing cross-world contamination
 
 ## Key Features
@@ -64,9 +64,11 @@ This architecture enables:
 
 | Component | Technology |
 |-----------|----------|
-| Game Engine | Godot 4.6.3 |
+| Game Engine | Godot 4.6.3+ |
+| Physics | Jolt Physics |
 | Renderer | Mobile |
 | Mod Packaging | Python 3.8+ |
+| Version Scheme | Semantic Versioning |
 
 ### Core Modules (10)
 
@@ -101,21 +103,22 @@ This architecture enables:
 **Global Mod:**
 ```
 _init_mod(api) → _on_bootstrap() → _on_post_bootstrap()
-    → [WORLD_LOAD_COMPLETE] → [WORLD_UNLOAD_COMPLETE] → _on_shutdown()
+	→ [WORLD_LOAD_COMPLETE] → [WORLD_UNLOAD_COMPLETE] → _on_shutdown()
 ```
 
 **World Mod:**
 ```
 _init_mod(api) → _on_world_load(world_id) → _on_world_enter(world_id)
-    → _on_world_leave(world_id)  ★ last chance to save
-    → _on_world_unload(world_id)  cleanup only
+	→ _on_world_leave(world_id)  ★ last chance to save
+	→ _on_world_unload(world_id)  cleanup only
 ```
 
 ## Environment Requirements
 
 ### Required
 
-- **Godot Engine 4.6.3** — exact version match required
+- **Godot Engine 4.6.3+** — any version from 4.6.3 onward. The engine kernel and the
+  CI test pipeline (`.github/workflows/ci.yml`) are validated against Godot 4.6.3 and newer.
 
 ### For Mod Packaging
 
@@ -129,16 +132,21 @@ _init_mod(api) → _on_world_load(world_id) → _on_world_enter(world_id)
 - Android
 - iOS
 
+### Display
+
+- Default resolution: 1280×720
+- Renderer: Mobile 
+
 ## Installation
 
 ### Option A: From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/SeanHank/AtomZero.git atom-zero
+git clone https://github.com/SeanHank/AtomZero.git
 cd atom-zero
 
-# Open in Godot 4.6.3
+# Open in Godot 4.6.3+
 # File → Open Project → select project.godot
 ```
 
@@ -154,7 +162,7 @@ cd atom-zero
 
 ## Usage Guide
 
-### Development Mode
+### Development Mode (Mod Authors)
 
 1. **Enable dev mode** — Open `core/bootstrap/Bootstrap.gd` and set:
    ```gdscript
@@ -165,8 +173,8 @@ cd atom-zero
    ```
    mods/
    └── your_mod/
-       ├── mod.json
-       └── mod.gd
+	   ├── mod.json
+	   └── mod.gd
    ```
 
 3. **Place World Mods** in the world's save directory:
@@ -227,7 +235,7 @@ atom-zero/
 
 ## Creating Your Own Mod
 
-See [Mod Development Guide](doc/Mod_Development_Guide.md) for details. 
+See [Mod Development Guide](doc/Mod_Development_Guide.md)
 
 ## Contributing
 
@@ -236,7 +244,7 @@ Contributions are welcomed! This project follows a standard fork-and-PR workflow
 ### Getting Started
 
 1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/<your-username>/AtomZero.git`
+2. **Clone** your fork: `git clone https://github.com/<your-username>/atom-zero.git`
 3. **Create a branch**: `git checkout -b feature/my-feature`
 4. **Make changes** following the guidelines below
 5. **Commit** with clear messages
@@ -263,13 +271,9 @@ This project is licensed under the **GNU Affero General Public License v3.0** (A
 
 Copyright © 2026 AtomLife Studio.
 
-See: [LICENSE](LICENSE)
+See: `LICENSE`
 
-### Disclaimer
-
-See: [DISCLAIMER.md](DISCLAIMER.md)
-
-> **Note on mods**: Individual mods may declare their own license in their `mod.json` file. The AGPLv3 license applies to the AtomZero engine kernel (`core/`) and project infrastructure (`tools/`). Mod authors are free to choose their own licenses for their mods.
+> **Note on mods**: Individual mods may declare their own license in their `mod.json` file. The AGPLv3 license applies to the AtomZero engine kernel (`core/`) and project infrastructure. Mod authors are free to choose their own licenses for their mods.
 
 ## Contact
 
@@ -283,3 +287,5 @@ For security-related reports, please email directly rather than opening a public
 
 - **[Godot Engine](https://godotengine.org)** — The incredible open-source game engine that powers AtomZero
 - All contributors who help build and improve the AtomZero framework
+
+---

@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="AtomZero"
-config/version="2026.6.30"
+config/version="2026.9.0"
 run/main_scene="res://core/main/Main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"

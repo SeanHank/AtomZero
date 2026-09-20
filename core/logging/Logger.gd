@@ -251,7 +251,7 @@ func _generate_crash_report() -> void:
 		return
 	f.store_line("========== AtomZero Crash Report ==========")
 	f.store_line("Time: %s" % Time.get_datetime_string_from_system(false, true))
-	f.store_line("Game version: 2026.6.30")
+	f.store_line("Game version: 2026.9.0")
 	f.store_line("Engine version: %s" % Engine.get_version_info().get("string", "unknown"))
 	f.store_line("Platform: %s" % OS.get_name())
 	f.store_line("")

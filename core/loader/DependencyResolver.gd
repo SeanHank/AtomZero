@@ -11,7 +11,7 @@
 class_name DependencyResolver
 extends RefCounted
 
-const CURRENT_GAME_VERSION: String = "2026.6.30"
+const CURRENT_GAME_VERSION: String = "2026.9.0"
 
 var _logger: AtomLogger = null
 

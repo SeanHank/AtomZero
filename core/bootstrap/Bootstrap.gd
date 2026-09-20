@@ -19,8 +19,8 @@ extends Node
 #         (the directory containing the executable, §3.2)
 const MOD_DEV_MODE: bool = false
 
-# Current game version (design doc header: 2026.6.30)
-const GAME_VERSION: String = "2026.6.30"
+# Current game version (design doc header: 2026.9.0)
+const GAME_VERSION: String = "2026.9.0"
 
 # ===== Core service references =====
 var logger: AtomLogger
