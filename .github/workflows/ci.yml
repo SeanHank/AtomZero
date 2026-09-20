@@ -1,14 +1,15 @@
 name: AtomZero CI
 
-# AtomZero CI — runs the functional test suite with a 100% coverage gate on
-# every push and pull request, and builds macOS, Linux, Windows, Android, and
-# iOS distributables from the core/ shell + icon.svg, uploading them to a
-# GitHub Release on version tags.
+# AtomZero CI — runs the functional test suite with a 100% coverage gate and
+# cross-exports macOS, Linux, Windows, Android, and iOS distributables from
+# the core/ shell + icon.svg. Every push to any branch produces a standard
+# GitHub Release, whose version is taken solely from `project.godot`
+# (`config/version`); the Release is re-created/updated on each push.
 #
 # Triggers:
-#   1. Push / pull_request (any branch)       -> test job only
-#   2. Push of a version tag matching v* (e.g. v2026.9.0) -> tests + all builds + release
-#   3. Manual dispatch (workflow_dispatch)    -> tests + all builds + optional release
+#   1. Push (any branch)       -> tests + all builds + standard GitHub Release
+#   2. pull_request            -> tests only
+#   3. Manual dispatch         -> tests + all builds + optional Release
 #
 # Required secrets (see tools/ci/README.md for details):
 #   ANDROID_KEYSTORE_BASE64   Base64-encoded release keystore (optional, debug used if absent)
@@ -25,10 +26,6 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to build (e.g. 2026.9.0)'
-        required: true
-        default: '2026.9.0'
       create_release:
         description: 'Create a GitHub Release after builds succeed'
         type: boolean
@@ -87,14 +84,14 @@ jobs:
           python3 tools/run_tests.py -n 8 --cov-fail-under 100
 
   # ─────────────────────────────────────────────────────────────────────
-  # Prepare: resolve version, generate export_presets.cfg, share artifact
-  # Only runs for tag pushes and manual dispatch; skipped on branch pushes
-  # and pull requests (which run the test job only). All build jobs depend
-  # on this job, so a skipped prepare skips the whole build chain.
+  # Prepare: resolve version, generate export_presets.cfg, share artifact.
+  # Runs on every push and manual dispatch. On pull requests it is skipped,
+  # so PRs run the test job only. All build jobs depend on this job, so it
+  # must run whenever the full cross-platform build is wanted.
   # ─────────────────────────────────────────────────────────────────────
   prepare:
     name: Prepare (version + presets)
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
@@ -107,19 +104,18 @@ jobs:
       - name: Resolve build metadata
         id: meta
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-            VERSION="${TAG#v}"
-            CREATE_RELEASE="true"
-          else
-            VERSION="${{ github.event.inputs.version }}"
-            TAG="v${VERSION}"
+          VERSION="$(sed -n 's/^config\/version="\([^"]*\)".*$/\1/p' project.godot)"
+          test -n "$VERSION" || { echo "::error::config/version not found in project.godot"; exit 1; }
+          TAG="v${VERSION}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             CREATE_RELEASE="${{ github.event.inputs.create_release }}"
+          else
+            CREATE_RELEASE="true"
           fi
           echo "version=${VERSION}"  >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}"          >> "$GITHUB_OUTPUT"
           echo "create_release=${CREATE_RELEASE}" >> "$GITHUB_OUTPUT"
-          echo "::notice::Building AtomZero ${VERSION} (tag ${TAG})"
+          echo "::notice::Standard release AtomZero ${VERSION} (tag ${TAG})"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -733,9 +729,10 @@ jobs:
           echo "::endgroup::"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: AtomZero ${{ needs.prepare.outputs.version }}
           body: |
             # AtomZero ${{ needs.prepare.outputs.version }}

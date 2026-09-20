@@ -101,12 +101,12 @@ contains nine jobs:
 1. **`test`** — installs a headless Godot 4.6.3 Linux editor and runs
    `tools/run_tests.py -n 8 --cov-fail-under 100`. Runs on every push,
    pull request, and manual dispatch. A test failure blocks the release
-   job (on tag pushes) and triggers the failure notifier.
-2. **`prepare`** — resolves the version (from the pushed tag or manual
-   input), runs `generate_export_presets.py`, and uploads the generated
-   `export_presets.cfg` as an artifact. Only runs for tag pushes and manual
-   dispatch; on branch pushes/pull requests it is skipped, which skips the
-   whole build chain below.
+   job and triggers the failure notifier.
+2. **`prepare`** — reads the version from `project.godot` `config/version`
+   (the single source of truth), derives the tag `v<version>`, runs
+   `generate_export_presets.py`, and uploads the generated
+   `export_presets.cfg` as an artifact. Runs on every push and manual
+   dispatch; only pull requests skip it (PRs run the test job only).
 3. **`build-macos`** — installs Godot 4.6.3 + export templates on macOS,
    exports an `.app` bundle, and zips it.
 4. **`build-linux`** — exports the Linux binary, then packages it as both
@@ -119,8 +119,9 @@ contains nine jobs:
    builds a `.ipa` via `xcodebuild`, or directly exports a signed `.ipa`
    when signing secrets are provided.
 8. **`release`** — downloads all build artifacts, stages them, and creates
-   a GitHub Release with `softprops/action-gh-release`. Runs only when all
-   builds *and* the test job succeeded.
+   a GitHub Release with `softprops/action-gh-release@v3`. Runs only when
+   all builds *and* the test job succeeded. Repeated pushes for the same
+   version update the existing Release on `v<version>`.
 9. **`notify-failure`** — runs `if: always()` after every job; if any job
    (including `test`) failed, it creates a GitHub issue (and posts to the
    webhook).
@@ -136,23 +137,22 @@ GitHub Actions log groups for easy scanning.
 
 The workflow runs on:
 
-- **Push or pull request on any branch** — runs the `test` job only
-  (functional suite + 100% coverage gate). The build chain is skipped.
-- **Push of a version tag** matching `v*` (e.g. `v2026.9.0`). The version
-  is derived by stripping the leading `v`, and a Release is created only if
-  the tests pass.
-- **Manual dispatch** (`workflow_dispatch`) with two inputs:
-  - `version` — the version string to build (default `2026.9.0`).
+- **Push on any branch** — runs the `test` job (functional suite + 100%
+  coverage gate) and all five platform builds, then creates (or updates) a
+  standard GitHub Release. The version is taken **solely** from
+  `project.godot` (`config/version`); pushing again for the same version
+  re-builds and updates that Release.
+- **Pull request** — runs the `test` job only.
+- **Manual dispatch** (`workflow_dispatch`) with one input:
   - `create_release` — whether to create a GitHub Release after the builds
-    succeed (default `true`).
+    succeed (default `true`). The version still comes from `project.godot`.
 
 ```bash
-# Tag-triggered release (recommended for releases)
-git tag v2026.9.0
-git push origin v2026.9.0
+# Release the current project.godot version
+git add project.godot && git commit -m "release: 2026.9.0" && git push
 
-# Manual build without a release
-gh workflow run ci.yml -f version=2026.9.0 -f create_release=false
+# Manual rebuild without touching the release
+gh workflow run ci.yml -f create_release=false
 ```
 
 A `concurrency` group keyed on `github.ref` cancels any superseded run on
@@ -162,22 +162,25 @@ the same ref.
 
 ## Version management
 
-The single source of truth for the game version is the `config/version`
-field in [`project.godot`](../../project.godot) (currently `2026.9.0`),
-mirrored by the `GAME_VERSION` constant in
+The **single and only source of truth** for the game version is the
+`config/version` field in [`project.godot`](../../project.godot) (currently
+`2026.9.0`), mirrored by the `GAME_VERSION` constant in
 [`Bootstrap.gd`](../../core/bootstrap/Bootstrap.gd).
 
-The `prepare` job resolves the effective build version as follows:
+The `prepare` job always reads the version from `project.godot` and derives
+the tag as `v<version>`:
 
-| Trigger | Version source | Tag |
-|---------|----------------|-----|
-| `push: tags: v*` | Tag with the leading `v` stripped | The pushed tag |
-| `workflow_dispatch` | The `version` input | `v<version>` |
+| Trigger | Version source | Tag | Release |
+|---------|----------------|-----|---------|
+| `push` (any branch) | `project.godot` `config/version` | `v<version>` | Created/updated |
+| `workflow_dispatch` | `project.godot` `config/version` | `v<version>` | Per `create_release` input |
 
-The resolved version is passed to `generate_export_presets.py` (so every
-preset's `application/version` field matches) and is baked into every
-artifact filename (e.g. `AtomZero-2026.9.0-macos.zip`). The `release` job
-uses the same version for the release name and body.
+The version is passed to `generate_export_presets.py` (so every preset's
+`application/version` field matches) and baked into every artifact filename
+(e.g. `AtomZero-2026.9.0-macos.zip`). The `release` job uses the same
+version for the release name and body. Because the tag derives solely from
+`config/version`, pushing again without changing the version updates the
+existing Release on the same tag; bump `config/version` to cut a new one.
 
 ---
 
